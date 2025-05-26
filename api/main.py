@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from api.webhooks import invoice_webhook, salesorder_webhook
+from webhooks import invoice_webhook
 import uvicorn
 from core.config import settings
 
@@ -7,7 +7,7 @@ app = FastAPI(title="Zakya Webhook Service")
 
 # Include routers
 app.include_router(invoice_webhook.router, prefix="/webhooks", tags=["webhooks"])
-app.include_router(salesorder_webhook.router, prefix="/webhooks", tags=["webhooks"])
+# app.include_router(salesorder_webhook.router, prefix="/webhooks", tags=["webhooks"])
 
 @app.get("/")
 async def root():

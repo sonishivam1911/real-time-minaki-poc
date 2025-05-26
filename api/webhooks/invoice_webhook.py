@@ -1,7 +1,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import Optional, Literal
-from datetime import datetime
+from typing import Literal
 from services.invoices_service import invoice_service
 
 # Create router
@@ -9,17 +8,20 @@ router = APIRouter()
 
 # Define models for webhook payloads
 class InvoiceWebhookPayload(BaseModel):
-    invoice_id: str
+    object_id: str
     action: Literal["create", "update", "delete"]
-    timestamp: Optional[datetime] = None
+    endpoint: str
 
 # Webhook endpoints
 @router.post("/invoice")
 async def process_invoice_webhook(payload: InvoiceWebhookPayload):
     """Handle webhook notifications for invoice events."""
+
+    # before this we have to get the access token via refresh token which be found 
+
     # Process the webhook
     result = await invoice_service.process_invoice_webhook(
-        invoice_id=payload.invoice_id,
+        invoice_id=payload.object_id,
         action=payload.action
     )
     

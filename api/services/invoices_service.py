@@ -1,5 +1,4 @@
 import pandas as pd
-import json
 from core.database import db
 from services.zakya_service import zakya_service
 

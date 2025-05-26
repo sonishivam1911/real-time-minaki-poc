@@ -1,6 +1,5 @@
 import requests
 from core.config import settings
-from utils.auth import get_auth_headers, refresh_access_token
 
 class ZakyaService:
     @staticmethod
@@ -10,7 +9,8 @@ class ZakyaService:
         """
         url = f"{settings.API_DOMAIN}inventory/v1/{endpoint}/{object_id}"
         
-        headers = get_auth_headers()
+        # Get authentication headers directly from settings
+        headers = settings.get_auth_headers()
         params = {"organization_id": settings.ORGANIZATION_ID}
         
         try:
@@ -18,9 +18,11 @@ class ZakyaService:
             
             # If token expired, refresh and try again
             if response.status_code == 401:
-                new_token = refresh_access_token()
+                # Use the settings method to force refresh the token
+                new_token = settings.refresh_access_token()
                 if new_token:
-                    headers = get_auth_headers()
+                    # Get updated headers with the new token
+                    headers = settings.get_auth_headers()
                     response = requests.get(url, headers=headers, params=params)
                 
             response.raise_for_status()
