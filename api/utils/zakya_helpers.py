@@ -1,6 +1,5 @@
 import requests
-import os
-from core.config import settings
+from api.core.config import settings
 from dotenv import load_dotenv
 
 # Load environment variables from .env

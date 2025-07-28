@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     CLIENT_SECRET: str = os.getenv("ZAKYA_CLIENT_SECRET")
     REDIRECT_URI: str = os.getenv("ZAKYA_REDIRECT_URI")
     TOKEN_URL: str = os.getenv("TOKEN_URL", "https://accounts.zoho.in/oauth/v2/token")
-    POSTGRES_URI: str = "postgresql://postgres.xhgaxxwjwtaqijbqkrnj:Wh.ZY*wv9*rA2N5@aws-0-ap-south-1.pooler.supabase.com:6543/postgres"
+    POSTGRES_URI: str = os.getenv("POSTGRES_SESSION_POOL_URI")
     ORGANIZATION_ID: str = os.getenv("ORGANIZATION_ID")
     DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
     BATCH_SIZE: int = int(os.getenv("BATCH_SIZE", "3"))
