@@ -1,7 +1,7 @@
 import pandas as pd
 from sqlalchemy import create_engine, text
 import json
-from api.core.config import settings
+from core.config import settings
 
 class PostgresCRUD:
     def __init__(self, db_uri):

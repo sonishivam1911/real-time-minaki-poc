@@ -1,8 +1,8 @@
 import uvicorn
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse
-from api.core.config import settings
-from api.services.salesorder_service import process_single_pdf
+from core.config import settings
+from services.salesorder_service import process_single_pdf
 
 app = FastAPI(title="PO PDF Processor API", version="1.0.0")
 
