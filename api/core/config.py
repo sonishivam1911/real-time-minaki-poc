@@ -30,8 +30,8 @@ class Settings(BaseSettings):
         """
         try:
             # Create engine only when needed, not at class initialization
-            print(f"Postgres URI : postgresql://postgres.xhgaxxwjwtaqijbqkrnj:Wh.ZY*wv9*rA2N5@aws-0-ap-south-1.pooler.supabase.com:6543/postgres")
-            engine = create_engine("postgresql://postgres.xhgaxxwjwtaqijbqkrnj:Wh.ZY*wv9*rA2N5@aws-0-ap-south-1.pooler.supabase.com:6543/postgres")
+            print(f"Postgres URI : {self.POSTGRES_URI}")
+            engine = create_engine(self.POSTGRES_URI)
             
             # Query for zakya_auth table
             query = f"""
