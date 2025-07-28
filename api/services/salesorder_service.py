@@ -4,7 +4,7 @@ from datetime import datetime
 import re
 import pandas as pd
 import pdfplumber
-from utils.zakya_helpers import post_record_to_zakya, fetch_records_from_zakya, extract_record_list
+from api.utils.zakya_helpers import post_record_to_zakya, fetch_records_from_zakya, extract_record_list
 
 
 fields = {
