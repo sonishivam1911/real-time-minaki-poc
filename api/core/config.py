@@ -2,6 +2,7 @@ import os
 import requests
 import pandas as pd
 from sqlalchemy import create_engine
+from fastapi import HTTPException
 from pydantic_settings import BaseSettings
 from typing import Optional
 from dotenv import load_dotenv
@@ -38,9 +39,10 @@ class Settings(BaseSettings):
                 SELECT * FROM zakya_auth 
                 WHERE env = '{self.ENV}'
             """
-            print(f"Query is : {query}")
+            print(f"[DEBUG] Query is : {query}")
             # Read token data from database
             zakya_auth_df = pd.read_sql(query, engine)
+            print(f"[DEBUG] Data is : {zakya_auth_df}")
             
             if zakya_auth_df.empty:
                 print("No authentication data found in database")
@@ -81,9 +83,32 @@ class Settings(BaseSettings):
         try:
             response = requests.post(self.TOKEN_URL, data=payload)
             response.raise_for_status()
+            print(f"[DEBUG] Response after hitting function _get_token_from_refresh : {response.json()}")
             return response.json()
         except Exception as e:
             print(f"Error refreshing token: {e}")
             return {}
+        
+    def get_zakya_connection(self) -> dict:
+        """Create zakya connection object."""
+        try:
+            access_token = self.get_access_token()
+            
+            if not access_token:
+                raise HTTPException(
+                    status_code=500, 
+                    detail="Failed to get access token from Zakya"
+                )
+            
+            return {
+                'base_url': self.API_DOMAIN,
+                'access_token': access_token,
+                'organization_id': self.ORGANIZATION_ID
+            }
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error setting up Zakya connection: {str(e)}"
+            )        
 
 settings = Settings()
