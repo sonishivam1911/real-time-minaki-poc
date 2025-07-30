@@ -1,8 +1,11 @@
 import uvicorn
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException
 from fastapi.responses import JSONResponse
+
 from core.config import settings
 from services.salesorder_service import process_single_pdf
+from schema.taj_invoices import InvoiceResponse
+from services.invoices_service import InvoiceService
 
 app = FastAPI(title="PO PDF Processor API", version="1.0.0")
 
@@ -103,6 +106,66 @@ async def root():
         }
     }
 
+
+
+async def get_zakya_connection():
+    """Get zakya connection object from settings."""
+    return settings.get_zakya_connection()
+
+@app.post("/generate-taj-invoices", response_model=InvoiceResponse)
+async def generate_invoices(
+    file: UploadFile = File(...),
+    date: str = Form(...),
+    zakya_connection: dict = Depends(get_zakya_connection)
+):
+    """
+    Generate invoices from uploaded Excel file.
+    
+    - **file**: Excel file upload (.xlsx)
+    - **date**: Invoice date in YYYY-MM-DD format
+    """
+    
+    # Validate file type
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        return InvoiceResponse(
+            invoices=[],
+            status_code=400,
+            message="Invalid file format. Please upload an Excel file (.xlsx or .xls)",
+            missing_product_skus=[],
+            total_invoices_created=0,
+            total_amount=0.0
+        )
+    
+    try:
+        # Read file content
+        file_content = await file.read()
+        
+        # Process invoice using service
+        response = await InvoiceService.process_invoice_file(
+            file_content, date, zakya_connection
+        )
+        
+        return response
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions (like validation errors)
+        raise
+    except Exception as e:
+        return InvoiceResponse(
+            invoices=[],
+            status_code=500,
+            message=f"Unexpected error: {str(e)}",
+            missing_product_skus=[],
+            total_invoices_created=0,
+            total_amount=0.0
+        )
+
+
 if __name__ == "__main__":
     
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        "main:app",  # Use import string instead of app object
+        host="0.0.0.0", 
+        port=8000, 
+        reload=True
+    )

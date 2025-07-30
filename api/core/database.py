@@ -1,7 +1,10 @@
 import pandas as pd
 from sqlalchemy import create_engine, text
 import json
+
+from pydantic import BaseModel
 from core.config import settings
+from utils.constants import OPERATORS
 
 class PostgresCRUD:
     def __init__(self, db_uri):
@@ -237,6 +240,38 @@ class PostgresCRUD:
         except Exception as e:
             print(f"Error deleting records from '{table_name}': {e}")
             return False
+
+
+    def build_where_clause(self, model: BaseModel, filters: dict) -> str:
+        valid_columns = model.model_fields.keys()  # Infer table columns from Pydantic model
+        clauses = []
+
+        for column, condition in filters.items():
+            if column not in valid_columns:
+                raise ValueError(f"Invalid column: {column}")
+
+            operator = condition.get("op")
+            value = condition.get("value")
+
+            if operator not in OPERATORS:
+                raise ValueError(f"Invalid operator '{operator}' for column '{column}'")
+
+            sql_operator = OPERATORS[operator]
+
+            # Handling different data types
+            if operator == "in" and isinstance(value, list):
+                formatted_values = ", ".join(f"'{v}'" for v in value)
+                clause = f"{column} {sql_operator} ({formatted_values})"
+            elif operator == "between" and isinstance(value, list) and len(value) == 2:
+                clause = f"{column} {sql_operator} '{value[0]}' AND '{value[1]}'"
+            else:
+                clause = f"{column} {sql_operator} '{value}'"
+
+            clauses.append(clause)
+
+
+        return "WHERE " + " AND ".join(clauses) if len(clauses) > 0 else clause
+
 
 # Create an instance of the database class
 db = PostgresCRUD(settings.POSTGRES_URI)
