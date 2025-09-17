@@ -50,6 +50,25 @@ class PostgresCRUD:
         except Exception as e:
             print(f"Error executing query: {e}")
             return False if not return_data else pd.DataFrame()
+        
+    def execute_query_new(self, query, return_data=False):
+        """Execute a SQL query."""
+        try:
+            with self.engine.connect() as connection:
+                if return_data:
+                    cursor_result = connection.execute(text(query))
+                    rows = cursor_result.fetchall()
+                    columns = cursor_result.keys()
+                    df = pd.DataFrame(rows, columns=columns)
+                    return df
+                else:
+                    # Use begin() to start a transaction and commit it
+                    with connection.begin():
+                        connection.execute(text(query))
+                    return True
+        except Exception as e:
+            print(f"Error executing query: {e}")
+            return False if not return_data else pd.DataFrame()        
     
     def create_insert_statements(self, df, table_name):
         """
