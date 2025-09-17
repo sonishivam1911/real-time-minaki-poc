@@ -19,8 +19,8 @@ class WhatsAppSlackService:
         self.slack_channel_id = os.getenv("SLACK_CHANNEL_ID")
         self.twilio_account_sid = os.getenv("TWILIO_ACCOUNT_SID")
         self.twilio_auth_token = os.getenv("TWILIO_AUTH_TOKEN")
-        self.twilio_whatsapp_number = os.getenv("TWILIO_WHATSAPP_NUMBER")
-        
+        self.twilio_messaging_service_id = os.getenv("TWILIO_MESSAGING_SERVICE_SID")
+
         # Validate required environment variables
         self._validate_env_variables()
         
@@ -37,7 +37,7 @@ class WhatsAppSlackService:
             ("SLACK_CHANNEL_ID", self.slack_channel_id),
             ("TWILIO_ACCOUNT_SID", self.twilio_account_sid),
             ("TWILIO_AUTH_TOKEN", self.twilio_auth_token),
-            ("TWILIO_WHATSAPP_NUMBER", self.twilio_whatsapp_number)
+            ("TWILIO_MESSAGING_SERVICE_SID", self.twilio_messaging_service_id)
         ]
         
         missing_vars = [var_name for var_name, var_value in required_vars if not var_value]
@@ -110,7 +110,7 @@ class WhatsAppSlackService:
             url = f"https://api.twilio.com/2010-04-01/Accounts/{self.twilio_account_sid}/Messages.json"
             
             data = {
-                'From': self.twilio_whatsapp_number,
+                'MessagingServiceSid': self.twilio_messaging_service_id,
                 'To': f'whatsapp:{phone_number}',
                 'Body': message_text
             }
@@ -134,6 +134,8 @@ class WhatsAppSlackService:
             print(f"Unexpected error sending WhatsApp message: {e}")
             raise HTTPException(status_code=500, detail=f"WhatsApp integration error: {str(e)}")
     
+
+
     def _get_thread_mapping(self, phone_number: str) -> Optional[str]:
         """Get existing thread ID for a phone number"""
         try:
