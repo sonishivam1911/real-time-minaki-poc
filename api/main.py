@@ -6,6 +6,9 @@ from core.config import settings
 from services.salesorder_service import process_single_pdf
 from schema.taj_invoices import InvoiceResponse
 from services.invoices_service import InvoiceService
+from services.whatsapp_slack_service import WhatsAppSlackService
+from utils.schema.whatsapp_slack_schema import MessageRequest, MessageResponse, ThreadMappingsResponse
+
 
 app = FastAPI(title="PO PDF Processor API", version="1.0.0")
 
@@ -88,6 +91,50 @@ async def upload_and_process_pdf(
                 "sales_order_id": None
             }
         )
+    
+@app.post("/whatsapp-slack/process-message", response_model=MessageResponse)
+async def process_message(request: MessageRequest):
+    """
+    Unified endpoint to handle both WhatsApp->Slack and Slack->WhatsApp messages
+    
+    For WhatsApp messages:
+    - message_type: "whatsapp"
+    - phone_number: Required
+    - message_text: Required
+    - sender_name: Optional
+    
+    For Slack messages:
+    - message_type: "slack" 
+    - thread_id: Required
+    - message_text: Required
+    """
+    try:
+        whatsapp_slack_service = WhatsAppSlackService()
+        result = whatsapp_slack_service.process_message(request)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in process_message endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    
+
+
+@app.get("/whatsapp-slack/thread-mappings", response_model=ThreadMappingsResponse)
+async def get_all_thread_mappings():
+    """
+    Get all thread mappings for debugging and admin purposes
+    """
+    try:
+        whatsapp_slack_service = WhatsAppSlackService()
+        result = whatsapp_slack_service.get_all_thread_mappings()
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in get_thread_mappings endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
 
 @app.get("/health")
 async def health_check():
