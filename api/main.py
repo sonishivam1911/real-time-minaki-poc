@@ -1,9 +1,9 @@
 import uvicorn
-from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException, Query, Path
+from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException, Query, Path, Body
 from fastapi.responses import JSONResponse
 import datetime
 from functools import lru_cache
-from typing import Optional
+from typing import Optional, List, Dict
 
 from core.config import settings
 from services.salesorder_service import process_single_pdf
@@ -976,6 +976,204 @@ async def get_all_namespaces(
         raise HTTPException(
             status_code=500,
             detail=f"Error fetching namespaces: {str(e)}"
+        )
+    
+
+# Replace your existing metafield endpoints with these improved versions:
+
+@app.post("/products/{product_id}/metafields", response_model=StandardResponse)
+async def add_metafield_to_product(
+    product_id: str = Path(..., description="Shopify product ID"),
+    metafield_data: MetafieldCreateRequest = None,
+    connector: ShopifyGraphQLConnector = Depends(get_connector)
+):
+    """
+    Add a metafield to a product (creates namespace automatically if new).
+    
+    - **product_id**: Shopify product ID
+    - **namespace**: Metafield namespace (created automatically if doesn't exist)
+    - **key**: Metafield key
+    - **value**: Metafield value
+    - **type**: Metafield type (default: single_line_text_field)
+    """
+    try:
+        result = connector.add_or_update_metafield(
+            product_id=product_id,
+            namespace=metafield_data.namespace,
+            key=metafield_data.key,
+            value=metafield_data.value,
+            field_type=metafield_data.type
+        )
+        
+        if 'errors' in result or result.get('data', {}).get('metafieldsSet', {}).get('userErrors'):
+            errors = result.get('errors', []) + result.get('data', {}).get('metafieldsSet', {}).get('userErrors', [])
+            return StandardResponse(
+                success=False,
+                message="Failed to add metafield",
+                error=str(errors)
+            )
+        
+        return StandardResponse(
+            success=True,
+            message=f"Metafield {metafield_data.namespace}.{metafield_data.key} added/updated for product {product_id}",
+            data=result['data']['metafieldsSet']['metafields'][0] if result.get('data', {}).get('metafieldsSet', {}).get('metafields') else None
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error adding metafield to product {product_id}: {str(e)}"
+        )
+
+
+@app.put("/products/{product_id}/metafields/{namespace}/{key}", response_model=StandardResponse)
+async def update_metafield_value(
+    product_id: str = Path(..., description="Shopify product ID"),
+    namespace: str = Path(..., description="Metafield namespace"),
+    key: str = Path(..., description="Metafield key"),
+    metafield_data: MetafieldUpdateRequest = None,
+    connector: ShopifyGraphQLConnector = Depends(get_connector)
+):
+    """
+    Update the value of an existing metafield.
+    
+    - **product_id**: Shopify product ID
+    - **namespace**: Metafield namespace
+    - **key**: Metafield key
+    - **value**: New metafield value
+    """
+    try:
+        result = connector.update_metafield_value(
+            product_id=product_id,
+            namespace=namespace,
+            key=key,
+            new_value=metafield_data.value
+        )
+        
+        if 'errors' in result or result.get('data', {}).get('metafieldsSet', {}).get('userErrors'):
+            errors = result.get('errors', []) + result.get('data', {}).get('metafieldsSet', {}).get('userErrors', [])
+            return StandardResponse(
+                success=False,
+                message="Failed to update metafield",
+                error=str(errors)
+            )
+        
+        return StandardResponse(
+            success=True,
+            message=f"Metafield {namespace}.{key} updated for product {product_id}",
+            data=result['data']['metafieldsSet']['metafields'][0] if result.get('data', {}).get('metafieldsSet', {}).get('metafields') else None
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error updating metafield {namespace}.{key} for product {product_id}: {str(e)}"
+        )
+
+
+# New endpoint for creating namespace with multiple fields
+@app.post("/products/{product_id}/namespaces/{namespace}", response_model=StandardResponse)
+async def create_namespace_with_fields(
+    product_id: str = Path(..., description="Shopify product ID"),
+    namespace: str = Path(..., description="New namespace name"),
+    fields_data: Dict[str, Dict[str, str]] = Body(..., description="Fields to add to namespace"),
+    connector: ShopifyGraphQLConnector = Depends(get_connector)
+):
+    """
+    Create a new namespace by adding multiple fields at once.
+    
+    Request body example:
+    {
+        "color": {"value": "Blue", "type": "single_line_text_field"},
+        "size": {"value": "Large", "type": "single_line_text_field"},
+        "weight": {"value": "1.5", "type": "number_decimal"}
+    }
+    """
+    try:
+        result = connector.create_namespace_with_fields(
+            product_id=product_id,
+            namespace=namespace,
+            fields_data=fields_data
+        )
+        
+        if 'errors' in result or result.get('data', {}).get('metafieldsSet', {}).get('userErrors'):
+            errors = result.get('errors', []) + result.get('data', {}).get('metafieldsSet', {}).get('userErrors', [])
+            return StandardResponse(
+                success=False,
+                message=f"Failed to create namespace '{namespace}'",
+                error=str(errors)
+            )
+        
+        created_count = len(result.get('data', {}).get('metafieldsSet', {}).get('metafields', []))
+        return StandardResponse(
+            success=True,
+            message=f"Created namespace '{namespace}' with {created_count} fields for product {product_id}",
+            data={
+                "namespace": namespace,
+                "fields_created": created_count,
+                "metafields": result['data']['metafieldsSet']['metafields']
+            }
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error creating namespace '{namespace}' for product {product_id}: {str(e)}"
+        )
+
+
+# New endpoint for bulk metafield operations
+@app.post("/metafields/bulk", response_model=StandardResponse)
+async def bulk_update_metafields(
+    metafields_data: List[Dict[str, str]] = Body(..., description="List of metafields to create/update"),
+    connector: ShopifyGraphQLConnector = Depends(get_connector)
+):
+    """
+    Bulk create/update metafields across multiple products.
+    
+    Request body example:
+    [
+        {
+            "product_id": "5714011652253",
+            "namespace": "custom",
+            "key": "color",
+            "value": "Blue",
+            "type": "single_line_text_field"
+        },
+        {
+            "product_id": "5714011652254", 
+            "namespace": "seo",
+            "key": "focus_keyword",
+            "value": "jewelry",
+            "type": "single_line_text_field"
+        }
+    ]
+    """
+    try:
+        result = connector.bulk_create_update_metafields(metafields_data)
+        
+        if 'errors' in result or result.get('data', {}).get('metafieldsSet', {}).get('userErrors'):
+            errors = result.get('errors', []) + result.get('data', {}).get('metafieldsSet', {}).get('userErrors', [])
+            return StandardResponse(
+                success=False,
+                message="Bulk metafield operation failed",
+                error=str(errors)
+            )
+        
+        processed_count = len(result.get('data', {}).get('metafieldsSet', {}).get('metafields', []))
+        return StandardResponse(
+            success=True,
+            message=f"Bulk processed {processed_count} metafields",
+            data={
+                "processed_count": processed_count,
+                "metafields": result['data']['metafieldsSet']['metafields']
+            }
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error in bulk metafield operation: {str(e)}"
         )
 
 
