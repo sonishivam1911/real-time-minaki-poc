@@ -20,7 +20,11 @@ class Settings(BaseSettings):
     DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
     BATCH_SIZE: int = int(os.getenv("BATCH_SIZE", "3"))
     ENV: str = os.getenv("env", "dev")
-    
+    SHOPIFY_API_KEY : str = os.getenv("SHOPIFY_API_KEY")
+    SHOPIFY_API_SECRET : str = os.getenv("SHOPIFY_API_SECRET")
+    SHOPIFY_SHOP_URL : str = os.getenv("SHOPIFY_SHOP_URL")
+    SHOPIFY_API_VERSION : str = os.getenv("SHOPIFY_API_VERSION")
+    SHOPIFY_ACCESS_TOKEN : str = os.getenv("SHOPIFY_ACCESS_TOKEN")
     # Initialize tokens as class attributes so they persist
     ACCESS_TOKEN: Optional[str] = None
     REFRESH_TOKEN: Optional[str] = None
