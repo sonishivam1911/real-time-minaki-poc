@@ -99,7 +99,7 @@ class ShopifyGraphQLConnector:
             metafields_query = """
             query getProductMetafields($id: ID!, $after: String) {
                 product(id: $id) {
-                    metafields(first: 1000, after: $after) {
+                    metafields(first: 250, after: $after) {
                         edges {
                             node {
                                 id
@@ -414,51 +414,6 @@ class ShopifyGraphQLConnector:
             print(f"Error adding metafield to product {product_id}: {str(e)}")
             raise
 
-    def update_metafield_value(self, product_id: str, namespace: str, key: str, 
-                             new_value: str) -> Dict[str, Any]:
-        """
-        Update the value of an existing metafield.
-        
-        Args:
-            product_id: Shopify product ID
-            namespace: Metafield namespace
-            key: Metafield key
-            new_value: New metafield value
-            
-        Returns:
-            Update result
-        """
-        # Ensure proper GraphQL ID format
-        if not product_id.startswith('gid://shopify/Product/'):
-            product_id = f"gid://shopify/Product/{product_id}"
-        
-        # Get existing metafield to preserve type
-        existing = self.get_product_metafields(product_id, namespace, key)
-        
-        if not existing.get('data', {}).get('product', {}).get('metafields', {}).get('edges'):
-            raise ValueError(f"Metafield {namespace}.{key} not found for product {product_id}")
-        
-        existing_metafield = existing['data']['product']['metafields']['edges'][0]['node']
-        field_type = existing_metafield.get('type', 'single_line_text_field')
-        
-        metafield = {
-            "ownerId": product_id,
-            "namespace": namespace,
-            "key": key,
-            "value": new_value,
-            "type": field_type
-        }
-        
-        try:
-            result = self.bulk_update_metafields([metafield])
-            print(f"Updated metafield {namespace}.{key} for product {product_id}")
-            return result
-        except Exception as e:
-            print(f"Error updating metafield for product {product_id}: {str(e)}")
-            raise
-
-    # EXISTING METHODS (keeping your original implementations)
-    
     def get_products(self, first: int = 10, after: Optional[str] = None, 
                     query_filter: Optional[str] = None) -> Dict[str, Any]:
         """Fetch products using GraphQL with pagination."""
@@ -764,165 +719,324 @@ class ShopifyGraphQLConnector:
 
 # Add this function to your ShopifyGraphQLConnector class
 
-def get_namespace_keys(self, namespace: str, max_products: Optional[int] = 100) -> Dict[str, Any]:
-    """
-    Get all unique keys for a specific namespace.
-    
-    Args:
-        namespace: Target namespace to analyze
-        max_products: Maximum products to scan (None = all products)
+    def get_namespace_keys(self, namespace: str, max_products: Optional[int] = 100) -> Dict[str, Any]:
+        """
+        Get all unique keys for a specific namespace.
         
-    Returns:
-        Dictionary with namespace keys analysis
-    """
-    try:
-        keys_data = defaultdict(lambda: {
-            'count': 0,
-            'product_ids': set(),
-            'sample_values': [],
-            'field_types': set()
-        })
-        
-        products_scanned = 0
-        total_metafields_found = 0
-        
-        print(f"Scanning namespace '{namespace}' for unique keys...")
-        
-        for batch in self.get_products_batch_for_db(batch_size=50):
-            for product in batch:
-                product_id = product.get('id', '').replace('gid://shopify/Product/', '')
-                metafields = product.get('metafields', {}).get('edges', [])
-                
-                for metafield_edge in metafields:
-                    metafield = metafield_edge['node']
+        Args:
+            namespace: Target namespace to analyze
+            max_products: Maximum products to scan (None = all products)
+            
+        Returns:
+            Dictionary with namespace keys analysis
+        """
+        try:
+            keys_data = defaultdict(lambda: {
+                'count': 0,
+                'product_ids': set(),
+                'sample_values': [],
+                'field_types': set()
+            })
+            
+            products_scanned = 0
+            total_metafields_found = 0
+            
+            print(f"Scanning namespace '{namespace}' for unique keys...")
+            
+            for batch in self.get_products_batch_for_db(batch_size=50):
+                for product in batch:
+                    product_id = product.get('id', '').replace('gid://shopify/Product/', '')
+                    metafields = product.get('metafields', {}).get('edges', [])
                     
-                    # Only process metafields in the target namespace
-                    if metafield.get('namespace') == namespace:
-                        key = metafield.get('key', 'unknown')
-                        value = metafield.get('value', '')
-                        field_type = metafield.get('type', 'unknown')
+                    for metafield_edge in metafields:
+                        metafield = metafield_edge['node']
                         
-                        key_stats = keys_data[key]
-                        key_stats['count'] += 1
-                        key_stats['product_ids'].add(product_id)
-                        key_stats['field_types'].add(field_type)
-                        
-                        # Store sample values (limit to 3 per key)
-                        if len(key_stats['sample_values']) < 3:
-                            sample_value = value[:150] if len(value) > 150 else value
-                            key_stats['sample_values'].append({
-                                'value': sample_value,
-                                'product_id': product_id,
-                                'type': field_type
-                            })
-                        
-                        total_metafields_found += 1
-            
-            products_scanned += len(batch)
-            
-            if max_products and products_scanned >= max_products:
-                break
-        
-        # Convert to final format
-        final_keys = {}
-        for key, stats in keys_data.items():
-            final_keys[key] = {
-                'key': key,
-                'metafield_count': stats['count'],
-                'product_count': len(stats['product_ids']),
-                'field_types': list(stats['field_types']),
-                'sample_values': stats['sample_values'],
-                'sample_product_ids': list(stats['product_ids'])[:5]
-            }
-        
-        result = {
-            'namespace': namespace,
-            'unique_keys_count': len(keys_data),
-            'total_metafields': total_metafields_found,
-            'products_scanned': products_scanned,
-            'keys': final_keys,
-            'analysis_timestamp': datetime.datetime.now().isoformat()
-        }
-        
-        print(f"Found {len(keys_data)} unique keys in namespace '{namespace}'")
-        return result
-        
-    except Exception as e:
-        print(f"Error analyzing namespace '{namespace}': {str(e)}")
-        raise
-
-def get_all_namespaces_with_keys(self, max_products: Optional[int] = 200) -> Dict[str, Any]:
-    """
-    Get all namespaces with their unique keys.
-    
-    Args:
-        max_products: Maximum products to scan
-        
-    Returns:
-        Complete namespace and keys analysis
-    """
-    try:
-        namespace_keys = defaultdict(lambda: defaultdict(lambda: {
-            'count': 0,
-            'product_ids': set(),
-            'field_types': set()
-        }))
-        
-        products_scanned = 0
-        
-        print("Scanning all namespaces for keys...")
-        
-        for batch in self.get_products_batch_for_db(batch_size=50):
-            for product in batch:
-                product_id = product.get('id', '').replace('gid://shopify/Product/', '')
-                metafields = product.get('metafields', {}).get('edges', [])
+                        # Only process metafields in the target namespace
+                        if metafield.get('namespace') == namespace:
+                            key = metafield.get('key', 'unknown')
+                            value = metafield.get('value', '')
+                            field_type = metafield.get('type', 'unknown')
+                            
+                            key_stats = keys_data[key]
+                            key_stats['count'] += 1
+                            key_stats['product_ids'].add(product_id)
+                            key_stats['field_types'].add(field_type)
+                            
+                            # Store sample values (limit to 3 per key)
+                            if len(key_stats['sample_values']) < 3:
+                                sample_value = value[:150] if len(value) > 150 else value
+                                key_stats['sample_values'].append({
+                                    'value': sample_value,
+                                    'product_id': product_id,
+                                    'type': field_type
+                                })
+                            
+                            total_metafields_found += 1
                 
-                for metafield_edge in metafields:
-                    metafield = metafield_edge['node']
-                    namespace = metafield.get('namespace', 'unknown')
-                    key = metafield.get('key', 'unknown')
-                    field_type = metafield.get('type', 'unknown')
-                    
-                    key_stats = namespace_keys[namespace][key]
-                    key_stats['count'] += 1
-                    key_stats['product_ids'].add(product_id)
-                    key_stats['field_types'].add(field_type)
+                products_scanned += len(batch)
+                
+                if max_products and products_scanned >= max_products:
+                    break
             
-            products_scanned += len(batch)
-            
-            if max_products and products_scanned >= max_products:
-                break
-        
-        # Convert to final format
-        final_result = {}
-        for namespace, keys in namespace_keys.items():
-            namespace_data = {
-                'namespace': namespace,
-                'unique_keys_count': len(keys),
-                'keys': {}
-            }
-            
-            for key, stats in keys.items():
-                namespace_data['keys'][key] = {
+            # Convert to final format
+            final_keys = {}
+            for key, stats in keys_data.items():
+                final_keys[key] = {
                     'key': key,
                     'metafield_count': stats['count'],
                     'product_count': len(stats['product_ids']),
-                    'field_types': list(stats['field_types'])
+                    'field_types': list(stats['field_types']),
+                    'sample_values': stats['sample_values'],
+                    'sample_product_ids': list(stats['product_ids'])[:5]
                 }
             
-            final_result[namespace] = namespace_data
+            result = {
+                'namespace': namespace,
+                'unique_keys_count': len(keys_data),
+                'total_metafields': total_metafields_found,
+                'products_scanned': products_scanned,
+                'keys': final_keys,
+                'analysis_timestamp': datetime.datetime.now().isoformat()
+            }
+            
+            print(f"Found {len(keys_data)} unique keys in namespace '{namespace}'")
+            return result
+            
+        except Exception as e:
+            print(f"Error analyzing namespace '{namespace}': {str(e)}")
+            raise
+
+    def get_all_namespaces_with_keys(self, max_products: Optional[int] = 200) -> Dict[str, Any]:
+        """
+        Get all namespaces with their unique keys.
         
-        summary = {
-            'total_namespaces': len(namespace_keys),
-            'products_scanned': products_scanned,
-            'analysis_timestamp': datetime.datetime.now().isoformat()
+        Args:
+            max_products: Maximum products to scan
+            
+        Returns:
+            Complete namespace and keys analysis
+        """
+        try:
+            namespace_keys = defaultdict(lambda: defaultdict(lambda: {
+                'count': 0,
+                'product_ids': set(),
+                'field_types': set()
+            }))
+            
+            products_scanned = 0
+            
+            print("Scanning all namespaces for keys...")
+            
+            for batch in self.get_products_batch_for_db(batch_size=50):
+                for product in batch:
+                    product_id = product.get('id', '').replace('gid://shopify/Product/', '')
+                    metafields = product.get('metafields', {}).get('edges', [])
+                    
+                    for metafield_edge in metafields:
+                        metafield = metafield_edge['node']
+                        namespace = metafield.get('namespace', 'unknown')
+                        key = metafield.get('key', 'unknown')
+                        field_type = metafield.get('type', 'unknown')
+                        
+                        key_stats = namespace_keys[namespace][key]
+                        key_stats['count'] += 1
+                        key_stats['product_ids'].add(product_id)
+                        key_stats['field_types'].add(field_type)
+                
+                products_scanned += len(batch)
+                
+                if max_products and products_scanned >= max_products:
+                    break
+            
+            # Convert to final format
+            final_result = {}
+            for namespace, keys in namespace_keys.items():
+                namespace_data = {
+                    'namespace': namespace,
+                    'unique_keys_count': len(keys),
+                    'keys': {}
+                }
+                
+                for key, stats in keys.items():
+                    namespace_data['keys'][key] = {
+                        'key': key,
+                        'metafield_count': stats['count'],
+                        'product_count': len(stats['product_ids']),
+                        'field_types': list(stats['field_types'])
+                    }
+                
+                final_result[namespace] = namespace_data
+            
+            summary = {
+                'total_namespaces': len(namespace_keys),
+                'products_scanned': products_scanned,
+                'analysis_timestamp': datetime.datetime.now().isoformat()
+            }
+            
+            return {
+                'summary': summary,
+                'namespaces': final_result
+            }
+            
+        except Exception as e:
+            print(f"Error in namespace keys analysis: {str(e)}")
+            raise
+
+    def add_or_update_metafield(self, product_id: str, namespace: str, key: str, 
+                            value: str, field_type: str = "single_line_text_field") -> Dict[str, Any]:
+        """
+        Add a new metafield or update existing one. 
+        Creates namespace automatically if it doesn't exist.
+        
+        Args:
+            product_id: Shopify product ID
+            namespace: Metafield namespace (created automatically if new)
+            key: Metafield key
+            value: Metafield value
+            field_type: Metafield type (only used for NEW metafields)
+            
+        Returns:
+            Creation/update result
+        """
+        # Ensure proper GraphQL ID format
+        if not product_id.startswith('gid://shopify/Product/'):
+            product_id = f"gid://shopify/Product/{product_id}"
+        
+        metafield = {
+            "ownerId": product_id,
+            "namespace": namespace,
+            "key": key,
+            "value": value,
+            "type": field_type
         }
         
-        return {
-            'summary': summary,
-            'namespaces': final_result
-        }
+        try:
+            result = self.bulk_update_metafields([metafield])
+            
+            # Check if it was successful
+            if result.get('data', {}).get('metafieldsSet', {}).get('metafields'):
+                action = "updated" if self._metafield_exists(product_id, namespace, key) else "created"
+                print(f"Successfully {action} metafield {namespace}.{key} for product {product_id}")
+            
+            return result
+        except Exception as e:
+            print(f"Error adding/updating metafield {namespace}.{key} for product {product_id}: {str(e)}")
+            raise
+
+    def _metafield_exists(self, product_id: str, namespace: str, key: str) -> bool:
+        """
+        Check if a metafield exists (helper method).
+        """
+        try:
+            result = self.get_product_metafields(product_id, namespace, key)
+            metafields = result.get('data', {}).get('product', {}).get('metafields', {}).get('edges', [])
+            return len(metafields) > 0
+        except:
+            return False
+
+    def bulk_create_update_metafields(self, metafields_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Bulk create/update multiple metafields across different products/namespaces.
         
-    except Exception as e:
-        print(f"Error in namespace keys analysis: {str(e)}")
-        raise
+        Args:
+            metafields_data: List of metafield dictionaries with keys:
+                - product_id: Product ID 
+                - namespace: Namespace name
+                - key: Metafield key
+                - value: Metafield value
+                - type: Field type (optional, defaults to single_line_text_field)
+        
+        Returns:
+            Bulk operation result
+        """
+        metafields = []
+        
+        for data in metafields_data:
+            product_id = data['product_id']
+            if not product_id.startswith('gid://shopify/Product/'):
+                product_id = f"gid://shopify/Product/{product_id}"
+            
+            metafield = {
+                "ownerId": product_id,
+                "namespace": data['namespace'],
+                "key": data['key'], 
+                "value": data['value'],
+                "type": data.get('type', 'single_line_text_field')
+            }
+            metafields.append(metafield)
+        
+        try:
+            result = self.bulk_update_metafields(metafields)
+            print(f"Bulk processed {len(metafields)} metafields")
+            return result
+        except Exception as e:
+            print(f"Error in bulk metafield operation: {str(e)}")
+            raise
+
+    def create_namespace_with_fields(self, product_id: str, namespace: str, 
+                                    fields_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a new namespace by adding multiple fields to it at once.
+        
+        Args:
+            product_id: Target product ID
+            namespace: New namespace name
+            fields_data: Dictionary of {key: {"value": value, "type": type}}
+            
+        Example:
+            create_namespace_with_fields(
+                "5714011652253", 
+                "my_custom_namespace",
+                {
+                    "color": {"value": "Blue", "type": "single_line_text_field"},
+                    "size": {"value": "Large", "type": "single_line_text_field"},
+                    "weight": {"value": "1.5", "type": "number_decimal"}
+                }
+            )
+        """
+        if not product_id.startswith('gid://shopify/Product/'):
+            product_id = f"gid://shopify/Product/{product_id}"
+        
+        metafields = []
+        for key, field_info in fields_data.items():
+            metafield = {
+                "ownerId": product_id,
+                "namespace": namespace,
+                "key": key,
+                "value": field_info["value"],
+                "type": field_info.get("type", "single_line_text_field")
+            }
+            metafields.append(metafield)
+        
+        try:
+            result = self.bulk_update_metafields(metafields)
+            print(f"Created namespace '{namespace}' with {len(metafields)} fields")
+            return result
+        except Exception as e:
+            print(f"Error creating namespace '{namespace}': {str(e)}")
+            raise
+
+    # Replace your existing update_metafield_value method with this simpler version:
+    def update_metafield_value(self, product_id: str, namespace: str, key: str, 
+                            new_value: str) -> Dict[str, Any]:
+        """
+        Update the value of an existing metafield (simplified version).
+        
+        Args:
+            product_id: Shopify product ID
+            namespace: Metafield namespace
+            key: Metafield key
+            new_value: New metafield value
+            
+        Returns:
+            Update result
+        """
+        # No need to fetch existing metafield - metafieldsSet preserves type automatically
+        return self.add_or_update_metafield(
+            product_id=product_id,
+            namespace=namespace, 
+            key=key,
+            value=new_value,
+            # Type will be preserved automatically for existing metafields
+            field_type="single_line_text_field"  # Only used if metafield doesn't exist
+        )    
