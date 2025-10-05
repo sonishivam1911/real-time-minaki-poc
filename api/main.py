@@ -11,6 +11,7 @@ from controller.shopify.product import controller as products
 from controller.whatsapp_slack import controller as  whatsapp_slack
 from controller.shopify.product.metaobject import controller as product_metaobjects
 from controller.shopify.metaobject import controller as metaobjects
+from controller.image_editing import controller as image_editing_controller
 
 app = FastAPI(
     title="PO PDF Processor API", 
@@ -75,6 +76,12 @@ app.include_router(
     metaobjects.router,
     prefix="/metaobjects",
     tags=["Shopify - Metaobjects"]
+)
+
+app.include_router(
+    image_editing_controller.router,
+    prefix="/api/image-editing",
+    tags=["Image Editing"]
 )
 
 @app.get("/", tags=["System"])
