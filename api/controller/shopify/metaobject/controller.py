@@ -57,11 +57,12 @@ async def get_metaobject_definitions(
         
         definitions = result.get('data', {}).get('metaobjectDefinitions', {}).get('edges', [])
         definitions_list = [edge['node'] for edge in definitions]
+
         
         return StandardResponse(
             success=True,
             message=f"Retrieved {len(definitions_list)} metaobject definitions",
-            data=definitions_list
+            data=result
         )
         
     except Exception as e:
