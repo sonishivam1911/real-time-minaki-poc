@@ -1,31 +1,26 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Path
-from functools import lru_cache
+from fastapi import APIRouter, Query, Path, HTTPException, Depends
 from typing import Optional
 
 from services.shopify_service import ShopifyGraphQLConnector
 from utils.schema.shopify_schema import (
-    StandardResponse, ProductResponse, ProductListResponse, 
-    ProductCreateRequest, ProductUpdateRequest
+    ProductListResponse, 
+    ProductResponse, 
+    ProductCreateRequest,
+    ProductUpdateRequest,
+    StandardResponse
 )
+from controller.shopify.dependencies import get_shopify_connector
 
 router = APIRouter()
 
-# Dependency to get Shopify connector
-@lru_cache()
-def get_shopify_connector():
-    """Get cached Shopify connector instance."""
-    return ShopifyGraphQLConnector()
+# Dependency to get Product Service
 
-def get_connector():
-    """Dependency for FastAPI to inject Shopify connector."""
-    return get_shopify_connector()
-
-@router.get("", response_model=ProductListResponse)
+@router.get("/", response_model=ProductListResponse)
 async def get_products(
     limit: int = Query(20, ge=1, le=250, description="Number of products to fetch"),
     after: Optional[str] = Query(None, description="Cursor for pagination"),
     search: Optional[str] = Query(None, description="Search query (Shopify format)"),
-    connector: ShopifyGraphQLConnector = Depends(get_connector)
+    connector: ShopifyGraphQLConnector = Depends(get_shopify_connector)
 ):
     """
     Get list of products with pagination.
@@ -72,11 +67,12 @@ async def get_products(
             detail=f"Error fetching products: {str(e)}"
         )
 
+
 @router.get("/{product_id}", response_model=ProductResponse)
 async def get_product(
     product_id: str = Path(..., description="Shopify product ID"),
     include_all_metafields: bool = Query(False, description="Include all metafields (may be slow)"),
-    connector: ShopifyGraphQLConnector = Depends(get_connector)
+    connector: ShopifyGraphQLConnector = Depends(get_shopify_connector)
 ):
     """
     Get a single product by ID.
@@ -112,10 +108,11 @@ async def get_product(
             detail=f"Error fetching product {product_id}: {str(e)}"
         )
 
-@router.post("", response_model=ProductResponse)
+
+@router.post("/", response_model=ProductResponse)
 async def create_product(
     product_data: ProductCreateRequest,
-    connector: ShopifyGraphQLConnector = Depends(get_connector)
+    connector: ShopifyGraphQLConnector = Depends(get_shopify_connector)
 ):
     """
     Create a new product.
@@ -167,11 +164,12 @@ async def create_product(
             detail=f"Error creating product: {str(e)}"
         )
 
+
 @router.put("/{product_id}", response_model=ProductResponse)
 async def update_product(
     product_id: str = Path(..., description="Shopify product ID"),
     product_data: ProductUpdateRequest = None,
-    connector: ShopifyGraphQLConnector = Depends(get_connector)
+    connector: ShopifyGraphQLConnector = Depends(get_shopify_connector)
 ):
     """
     Update an existing product.
@@ -227,10 +225,11 @@ async def update_product(
             detail=f"Error updating product {product_id}: {str(e)}"
         )
 
+
 @router.delete("/{product_id}", response_model=StandardResponse)
 async def delete_product(
     product_id: str = Path(..., description="Shopify product ID"),
-    connector: ShopifyGraphQLConnector = Depends(get_connector)
+    connector: ShopifyGraphQLConnector = Depends(get_shopify_connector)
 ):
     """
     Delete a product.
@@ -260,3 +259,4 @@ async def delete_product(
             status_code=500,
             detail=f"Error deleting product {product_id}: {str(e)}"
         )
+
