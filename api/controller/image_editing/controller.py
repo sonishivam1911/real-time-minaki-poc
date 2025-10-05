@@ -15,7 +15,7 @@ router = APIRouter()
 @router.post("/sync-database", response_model=NDJSONImportResponse)
 async def import_products_from_ndjson(
     file: UploadFile = File(..., description="NDJSON file containing product data"),
-    table_name: str = Form(default="products", description="Target table name")
+    table_name: str = Form(default="xuping_product_master", description="Target table name") 
 ):
     """
     Import products from NDJSON file into database.
