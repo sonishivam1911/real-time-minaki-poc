@@ -66,3 +66,35 @@ class AllNamespacesKeysResponse(BaseModel):
     summary: Dict[str, Any]
     namespaces: Dict[str, Any]
     error: Optional[str] = None
+
+
+class MetaobjectLinkRequest(BaseModel):
+    metaobject_id: str
+    namespace: str
+    key: str
+
+class MetaobjectCreateRequest(BaseModel):
+    type: str
+    fields: List[Dict[str, str]]
+    handle: Optional[str] = None
+
+class MetaobjectUpdateRequest(BaseModel):
+    fields: List[Dict[str, str]]
+
+class MetaobjectDefinitionRequest(BaseModel):
+    type: str
+    name: str
+    field_definitions: List[Dict[str, Any]]
+
+class MetaobjectResponse(BaseModel):
+    success: bool
+    message: str
+    metaobjects: Optional[List[Dict]] = None
+    error: Optional[str] = None
+
+class MetaobjectListResponse(BaseModel):
+    success: bool
+    message: str
+    metaobjects: Optional[Dict[str, List[Dict]]] = None
+    pagination: Optional[Dict] = None
+    error: Optional[str] = None    

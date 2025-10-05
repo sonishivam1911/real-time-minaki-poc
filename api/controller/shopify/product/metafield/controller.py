@@ -1,31 +1,25 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Path, Body
-from functools import lru_cache
-from typing import Optional, List, Dict
+from fastapi import APIRouter, Query, Path, HTTPException, Depends
+from typing import Optional
 
 from services.shopify_service import ShopifyGraphQLConnector
 from utils.schema.shopify_schema import (
-    StandardResponse, MetafieldResponse, 
-    MetafieldCreateRequest, MetafieldUpdateRequest
+    MetafieldResponse,
+    MetafieldCreateRequest,
+    StandardResponse,
+    MetafieldUpdateRequest
 )
+from controller.shopify.dependencies import get_shopify_connector
+
 
 router = APIRouter()
 
-# Dependency to get Shopify connector
-@lru_cache()
-def get_shopify_connector():
-    """Get cached Shopify connector instance."""
-    return ShopifyGraphQLConnector()
 
-def get_connector():
-    """Dependency for FastAPI to inject Shopify connector."""
-    return get_shopify_connector()
-
-@router.get("/{product_id}/metafields", response_model=MetafieldResponse)
+@router.get("/", response_model=MetafieldResponse)
 async def get_product_metafields(
     product_id: str = Path(..., description="Shopify product ID"),
     namespace: Optional[str] = Query(None, description="Filter by namespace"),
     key: Optional[str] = Query(None, description="Filter by key"),
-    connector: ShopifyGraphQLConnector = Depends(get_connector)
+    connector: ShopifyGraphQLConnector = Depends(get_shopify_connector)
 ):
     """
     Get metafields for a product.
@@ -59,11 +53,11 @@ async def get_product_metafields(
             detail=f"Error fetching metafields for product {product_id}: {str(e)}"
         )
 
-@router.post("/{product_id}/metafields", response_model=StandardResponse)
+@router.post("/", response_model=StandardResponse)
 async def add_metafield_to_product(
-    metafield_data: MetafieldCreateRequest,
     product_id: str = Path(..., description="Shopify product ID"),
-    connector: ShopifyGraphQLConnector = Depends(get_connector)
+    metafield_data: MetafieldCreateRequest = None,
+    connector: ShopifyGraphQLConnector = Depends(get_shopify_connector)
 ):
     """
     Add a metafield to a product (creates namespace automatically if new).
@@ -103,13 +97,14 @@ async def add_metafield_to_product(
             detail=f"Error adding metafield to product {product_id}: {str(e)}"
         )
 
-@router.put("/{product_id}/metafields/{namespace}/{key}", response_model=StandardResponse)
+
+@router.put("/{namespace}/{key}", response_model=StandardResponse)
 async def update_metafield_value(
-    metafield_data: MetafieldUpdateRequest,
     product_id: str = Path(..., description="Shopify product ID"),
     namespace: str = Path(..., description="Metafield namespace"),
     key: str = Path(..., description="Metafield key"),
-    connector: ShopifyGraphQLConnector = Depends(get_connector)
+    metafield_data: MetafieldUpdateRequest = None,
+    connector: ShopifyGraphQLConnector = Depends(get_shopify_connector)
 ):
     """
     Update the value of an existing metafield.
@@ -147,12 +142,14 @@ async def update_metafield_value(
             detail=f"Error updating metafield {namespace}.{key} for product {product_id}: {str(e)}"
         )
 
-@router.delete("/{product_id}/metafields/{namespace}/{key}", response_model=StandardResponse)
+
+
+@router.delete("/{namespace}/{key}", response_model=StandardResponse)
 async def delete_metafield(
     product_id: str = Path(..., description="Shopify product ID"),
     namespace: str = Path(..., description="Metafield namespace"),
     key: str = Path(..., description="Metafield key"),
-    connector: ShopifyGraphQLConnector = Depends(get_connector)
+    connector: ShopifyGraphQLConnector = Depends(get_shopify_connector)
 ):
     """
     Delete a metafield from a product.
@@ -190,105 +187,4 @@ async def delete_metafield(
             detail=f"Error deleting metafield {namespace}.{key} for product {product_id}: {str(e)}"
         )
 
-@router.post("/{product_id}/namespaces/{namespace}", response_model=StandardResponse)
-async def create_namespace_with_fields(
-    product_id: str = Path(..., description="Shopify product ID"),
-    namespace: str = Path(..., description="New namespace name"),
-    fields_data: Dict[str, Dict[str, str]] = Body(..., description="Fields to add to namespace"),
-    connector: ShopifyGraphQLConnector = Depends(get_connector)
-):
-    """
-    Create a new namespace by adding multiple fields at once.
-    
-    Request body example:
-    {
-        "color": {"value": "Blue", "type": "single_line_text_field"},
-        "size": {"value": "Large", "type": "single_line_text_field"},
-        "weight": {"value": "1.5", "type": "number_decimal"}
-    }
-    """
-    try:
-        result = connector.create_namespace_with_fields(
-            product_id=product_id,
-            namespace=namespace,
-            fields_data=fields_data
-        )
-        
-        if 'errors' in result or result.get('data', {}).get('metafieldsSet', {}).get('userErrors'):
-            errors = result.get('errors', []) + result.get('data', {}).get('metafieldsSet', {}).get('userErrors', [])
-            return StandardResponse(
-                success=False,
-                message=f"Failed to create namespace '{namespace}'",
-                error=str(errors)
-            )
-        
-        created_count = len(result.get('data', {}).get('metafieldsSet', {}).get('metafields', []))
-        return StandardResponse(
-            success=True,
-            message=f"Created namespace '{namespace}' with {created_count} fields for product {product_id}",
-            data={
-                "namespace": namespace,
-                "fields_created": created_count,
-                "metafields": result['data']['metafieldsSet']['metafields']
-            }
-        )
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error creating namespace '{namespace}' for product {product_id}: {str(e)}"
-        )
 
-# Bulk metafield operations endpoint
-@router.post("/bulk/metafields", response_model=StandardResponse)
-async def bulk_update_metafields(
-    metafields_data: List[Dict[str, str]] = Body(..., description="List of metafields to create/update"),
-    connector: ShopifyGraphQLConnector = Depends(get_connector)
-):
-    """
-    Bulk create/update metafields across multiple products.
-    
-    Request body example:
-    [
-        {
-            "product_id": "5714011652253",
-            "namespace": "custom",
-            "key": "color",
-            "value": "Blue",
-            "type": "single_line_text_field"
-        },
-        {
-            "product_id": "5714011652254", 
-            "namespace": "seo",
-            "key": "focus_keyword",
-            "value": "jewelry",
-            "type": "single_line_text_field"
-        }
-    ]
-    """
-    try:
-        result = connector.bulk_create_update_metafields(metafields_data)
-        
-        if 'errors' in result or result.get('data', {}).get('metafieldsSet', {}).get('userErrors'):
-            errors = result.get('errors', []) + result.get('data', {}).get('metafieldsSet', {}).get('userErrors', [])
-            return StandardResponse(
-                success=False,
-                message="Bulk metafield operation failed",
-                error=str(errors)
-            )
-        
-        processed_count = len(result.get('data', {}).get('metafieldsSet', {}).get('metafields', []))
-        return StandardResponse(
-            success=True,
-            message=f"Bulk processed {processed_count} metafields",
-            data={
-                "processed_count": processed_count,
-                "metafields": result['data']['metafieldsSet']['metafields']
-            }
-        )
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error in bulk metafield operation: {str(e)}"
-        )
