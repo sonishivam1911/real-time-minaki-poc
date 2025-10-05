@@ -9,6 +9,8 @@ from controller.zakya.salesorder import controller as salesorders
 from controller.zakya.invoice import controller as invoices
 from controller.shopify.product import controller as products
 from controller.whatsapp_slack import controller as  whatsapp_slack
+from controller.shopify.product.metaobject import controller as product_metaobjects
+from controller.shopify.metaobject import controller as metaobjects
 
 app = FastAPI(
     title="PO PDF Processor API", 
@@ -60,6 +62,19 @@ app.include_router(
     whatsapp_slack.router,
     prefix="/whatsapp-slack",
     tags=["Integrations - WhatsApp/Slack"]
+)
+
+app.include_router(
+    product_metaobjects.router,
+    prefix="/products/{product_id}/metaobjects",
+    tags=["Shopify - Product Metaobjects"]
+)
+
+# Global metaobject routes
+app.include_router(
+    metaobjects.router,
+    prefix="/metaobjects",
+    tags=["Shopify - Metaobjects"]
 )
 
 @app.get("/", tags=["System"])
