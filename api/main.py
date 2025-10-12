@@ -13,6 +13,7 @@ from controller.whatsapp_slack import controller as  whatsapp_slack
 from controller.shopify.product.metaobject import controller as product_metaobjects
 from controller.shopify.metaobject import controller as metaobjects
 from controller.image_editing import controller as image_editing_controller
+from controller.shopify.product.metafield_migration import controller as metafield_migration_routes
 
 app = FastAPI(
     title="PO PDF Processor API", 
@@ -92,6 +93,12 @@ app.include_router(
     image_editing_controller.router,
     prefix="/api/image-editing",
     tags=["Image Editing"]
+)
+
+app.include_router(
+    metafield_migration_routes.router,
+    prefix="/api/metafield-migration",
+    tags=["Shopify - Metafield Migration"]
 )
 
 @app.get("/", tags=["System"])
