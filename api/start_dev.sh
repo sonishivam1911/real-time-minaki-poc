@@ -61,9 +61,9 @@ echo -e "${GREEN}✅ All dependencies installed successfully${NC}"
 
 # Start the FastAPI application
 echo -e "${GREEN}🌟 Starting FastAPI application...${NC}"
-echo -e "${YELLOW}📍 Server will be available at: http://localhost:8000${NC}"
-echo -e "${YELLOW}📍 API docs will be available at: http://localhost:8000/docs${NC}"
+echo -e "${YELLOW}📍 Server will be available at: http://localhost:8001${NC}"
+echo -e "${YELLOW}📍 API docs will be available at: http://localhost:8001/docs${NC}"
 echo -e "${YELLOW}🔄 Press Ctrl+C to stop the server${NC}"
 
 # Start uvicorn with reload for development
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn main:app --host 0.0.0.0 --port 8001 --reload

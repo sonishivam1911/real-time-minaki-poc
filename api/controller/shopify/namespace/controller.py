@@ -253,4 +253,39 @@ async def get_all_namespaces(
             status_code=500,
             detail=f"Error fetching namespaces: {str(e)}"
         )
+
+
+@router.get("/{namespace}/keys/{key}/values", response_model=StandardResponse)
+async def get_namespace_key_values(
+    namespace: str = Path(..., description="Namespace to analyze"),
+    key: str = Path(..., description="Key to analyze"),
+    max_products: Optional[int] = Query(300, ge=50, le=1000, description="Maximum products to scan"),
+    connector: ShopifyGraphQLConnector = Depends(get_shopify_connector)
+):
+    """
+    Get all unique values for a specific namespace.key combination.
+    
+    - **namespace**: Target namespace (e.g., 'addfea', 'custom')  
+    - **key**: Target key (e.g., 'color', 'style')
+    - **max_products**: Limit products to scan (50-1000, default 300)
+    
+    Returns detailed analysis of all unique values for the metafield including:
+    - List of unique values with usage counts
+    - Products that use each value
+    - Sample original metafield data
+    """
+    try:
+        result = connector.get_unique_metafield_values(namespace, key, max_products)
+        
+        return StandardResponse(
+            success=True,
+            message=f"Found {result['unique_values_count']} unique values for '{namespace}.{key}'",
+            data=result
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error analyzing values for '{namespace}.{key}': {str(e)}"
+        )
   

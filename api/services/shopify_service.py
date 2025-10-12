@@ -2,6 +2,7 @@
 import requests
 import datetime
 import time
+import json
 from collections import defaultdict
 from typing import List, Dict, Any, Optional, Iterator
 
@@ -1039,4 +1040,146 @@ class ShopifyGraphQLConnector:
             value=new_value,
             # Type will be preserved automatically for existing metafields
             field_type="single_line_text_field"  # Only used if metafield doesn't exist
-        )    
+        )
+
+    def get_unique_metafield_values(self, namespace: str, key: str, max_products: Optional[int] = 200) -> Dict[str, Any]:
+        """
+        Get all unique values for a specific namespace.key combination.
+        
+        Args:
+            namespace: Target namespace
+            key: Target key
+            max_products: Maximum products to scan (None = all products)
+            
+        Returns:
+            Dictionary with unique values analysis
+        """
+        try:
+            unique_values = set()
+            value_stats = defaultdict(lambda: {
+                'count': 0,
+                'product_ids': set(),
+                'sample_full_values': []
+            })
+            
+            products_scanned = 0
+            metafields_found = 0
+            
+            print(f"Scanning for unique values in '{namespace}.{key}'...")
+            
+            for batch in self.get_products_batch_for_db(batch_size=50):
+                for product in batch:
+                    product_id = product.get('id', '').replace('gid://shopify/Product/', '')
+                    metafields = product.get('metafields', {}).get('edges', [])
+                    
+                    for metafield_edge in metafields:
+                        metafield = metafield_edge['node']
+                        
+                        # Only process the specific namespace.key combination
+                        if (metafield.get('namespace') == namespace and 
+                            metafield.get('key') == key):
+                            
+                            value = metafield.get('value', '')
+                            field_type = metafield.get('type', 'unknown')
+                            
+                            # Handle different value types
+                            processed_values = self._extract_individual_values(value, field_type)
+                            
+                            for processed_value in processed_values:
+                                unique_values.add(processed_value)
+                                
+                                value_stats[processed_value]['count'] += 1
+                                value_stats[processed_value]['product_ids'].add(product_id)
+                                
+                                # Store full original value as sample
+                                if len(value_stats[processed_value]['sample_full_values']) < 2:
+                                    value_stats[processed_value]['sample_full_values'].append({
+                                        'original_value': value,
+                                        'product_id': product_id,
+                                        'type': field_type
+                                    })
+                            
+                            metafields_found += 1
+                
+                products_scanned += len(batch)
+                
+                if max_products and products_scanned >= max_products:
+                    break
+            
+            # Convert to final format
+            values_list = []
+            for value in sorted(unique_values):
+                stats = value_stats[value]
+                values_list.append({
+                    'value': value,
+                    'count': stats['count'],
+                    'product_count': len(stats['product_ids']),
+                    'sample_product_ids': list(stats['product_ids'])[:3],
+                    'sample_full_values': stats['sample_full_values']
+                })
+            
+            result = {
+                'namespace': namespace,
+                'key': key,
+                'unique_values_count': len(unique_values),
+                'total_metafields_found': metafields_found,
+                'products_scanned': products_scanned,
+                'values': values_list,
+                'analysis_timestamp': datetime.datetime.now().isoformat()
+            }
+            
+            print(f"Found {len(unique_values)} unique values for '{namespace}.{key}' from {metafields_found} metafields")
+            return result
+            
+        except Exception as e:
+            print(f"Error getting unique values for '{namespace}.{key}': {str(e)}")
+            raise
+
+    def _extract_individual_values(self, value: str, field_type: str) -> List[str]:
+        """
+        Extract individual values from metafield value based on type.
+        Handles lists, JSON, and regular strings.
+        
+        Args:
+            value: Raw metafield value
+            field_type: Metafield type
+            
+        Returns:
+            List of individual values
+        """
+        try:
+            # Handle list types
+            if field_type.startswith('list.'):
+                try:
+                    parsed = json.loads(value)
+                    if isinstance(parsed, list):
+                        return [str(item).strip() for item in parsed if str(item).strip()]
+                except:
+                    pass
+            
+            # Handle JSON types
+            if field_type == 'json':
+                try:
+                    parsed = json.loads(value)
+                    if isinstance(parsed, dict):
+                        # Extract values from JSON object
+                        return [str(v).strip() for v in parsed.values() if str(v).strip()]
+                    elif isinstance(parsed, list):
+                        return [str(item).strip() for item in parsed if str(item).strip()]
+                except:
+                    pass
+            
+            # Handle comma-separated values (common pattern)
+            if ',' in value and not value.startswith('['):
+                return [item.strip() for item in value.split(',') if item.strip()]
+            
+            # Handle pipe-separated values  
+            if '|' in value:
+                return [item.strip() for item in value.split('|') if item.strip()]
+            
+            # Default: return as single value
+            return [value.strip()] if value.strip() else []
+            
+        except Exception as e:
+            print(f"Error extracting values from '{value}': {e}")
+            return [value] if value else []

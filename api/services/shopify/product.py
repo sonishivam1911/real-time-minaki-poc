@@ -1,4 +1,5 @@
 import time
+import json
 from typing import List, Dict, Any, Optional, Iterator
 from .base_connector  import BaseShopifyConnector
 
@@ -171,7 +172,6 @@ class ShopifyProductService:
             print(f"Error deleting product {product_id}: {str(e)}")
             raise
 
-
     def get_product_namespaces(self, product_id: str) -> List[str]:
         """
         Get all namespaces for a specific product.
@@ -203,23 +203,37 @@ class ShopifyProductService:
             return []
 
     def add_metafield_to_product(self, product_id: str, namespace: str, key: str, 
-                               value: str, field_type: str = "single_line_text_field") -> Dict[str, Any]:
+                            value: str, field_type: str = "single_line_text_field") -> Dict[str, Any]:
         """
-        Add a metafield to a product.
-        
-        Args:
-            product_id: Shopify product ID
-            namespace: Metafield namespace
-            key: Metafield key
-            value: Metafield value
-            field_type: Metafield type
-            
-        Returns:
-            Creation result
+        Add a metafield to a product with automatic type handling.
         """
         # Ensure proper GraphQL ID format
         if not product_id.startswith('gid://shopify/Product/'):
             product_id = f"gid://shopify/Product/{product_id}"
+        
+        if field_type=="metaobject_reference":
+            field_type = "list.metaobject_reference"
+            value = value.strip().strip('"').strip("'")
+            value = json.dumps([value])
+        
+
+        mutation = """
+        mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+            metafieldsSet(metafields: $metafields) {
+                metafields {
+                    id
+                    namespace
+                    key
+                    value
+                    type
+                }
+                userErrors {
+                    field
+                    message
+                }
+            }
+        }
+        """
         
         metafield = {
             "ownerId": product_id,
@@ -229,12 +243,93 @@ class ShopifyProductService:
             "type": field_type
         }
         
+        variables = {"metafields": [metafield]}
+        
         try:
-            result = self.bulk_update_metafields([metafield])
-            print(f"Added metafield {namespace}.{key} to product {product_id}")
+            result = self.client.execute_query(mutation, variables)
+            
+            mutation_data = result.get('data', {}).get('metafieldsSet', {})
+            user_errors = mutation_data.get('userErrors', [])
+            
+            if user_errors:
+                error_messages = [f"{err.get('field')}: {err.get('message')}" for err in user_errors]
+                raise Exception(f"Metafield creation failed: {', '.join(error_messages)}")
+            
+            print(f"✓ Added metafield {namespace}.{key} to product {product_id}")
             return result
+            
         except Exception as e:
-            print(f"Error adding metafield to product {product_id}: {str(e)}")
+            error_msg = f"Error adding metafield {namespace}.{key} to product {product_id} and {field_type}: {str(e)}"
+            print(f"✗ {error_msg}")
+            raise Exception(error_msg)
+
+    def bulk_update_metafields(self, metafields: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Bulk create/update multiple metafields in a single GraphQL call.
+        More efficient than calling add_metafield_to_product multiple times.
+        
+        Args:
+            metafields: List of metafield objects
+            
+        Returns:
+            GraphQL mutation result
+            
+        Example:
+            service.bulk_update_metafields([
+                {
+                    "ownerId": "gid://shopify/Product/123",
+                    "namespace": "custom",
+                    "key": "finish",
+                    "value": "gid://shopify/Metaobject/456",
+                    "type": "metaobject_reference"
+                },
+                {
+                    "ownerId": "gid://shopify/Product/123",
+                    "namespace": "custom",
+                    "key": "jewelry_closure",
+                    "value": "gid://shopify/Metaobject/789",
+                    "type": "metaobject_reference"
+                }
+            ])
+        """
+        mutation = """
+        mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+            metafieldsSet(metafields: $metafields) {
+                metafields {
+                    id
+                    namespace
+                    key
+                    value
+                    type
+                }
+                userErrors {
+                    field
+                    message
+                }
+            }
+        }
+        """
+        
+        variables = {"metafields": metafields}
+        
+        try:
+            result = self.client.execute_query(mutation, variables)
+            
+            # Check for errors
+            mutation_data = result.get('data', {}).get('metafieldsSet', {})
+            user_errors = mutation_data.get('userErrors', [])
+            
+            if user_errors:
+                error_messages = [f"{err.get('field')}: {err.get('message')}" for err in user_errors]
+                raise Exception(f"Bulk metafield update failed: {', '.join(error_messages)}")
+            
+            created_count = len(mutation_data.get('metafields', []))
+            print(f"✓ Bulk updated {created_count} metafields")
+            
+            return result
+            
+        except Exception as e:
+            print(f"✗ Error in bulk_update_metafields: {str(e)}")
             raise
 
     def get_products(self, first: int = 10, after: Optional[str] = None, 
@@ -478,7 +573,6 @@ class ShopifyProductService:
         
         variables = {'id': product_id}
         return self.client.execute_query(query, variables)
-
 
     def get_product_metaobjects(self, product_id: str) -> Dict[str, Any]:
         """
