@@ -1,2 +1,1 @@
-# supabase-edge-functions
-This repository deals with creating edge function in supabase using typescipt/javascript 
+This repository hold various types of APIs which connect zakya and shopify to extract product details and sycn between 2 vendors for us. Also has AI-agents to write trival things like name and description and seo as well
