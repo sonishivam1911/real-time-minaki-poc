@@ -202,21 +202,89 @@ class ShopifyProductService:
             print(f"Error getting namespaces for product {product_id}: {str(e)}")
             return []
 
+    def get_metafield_definition_type(self, namespace: str, key: str, owner_type: str = "PRODUCT"):
+        """
+        Get the actual type of a metafield definition from Shopify.
+        
+        Args:
+            namespace: Metafield namespace
+            key: Metafield key
+            owner_type: Owner type (default: PRODUCT)
+            
+        Returns:
+            The actual type string (e.g., 'metaobject_reference' or 'list.metaobject_reference')
+            or None if definition doesn't exist
+        """
+        query = """
+        query getMetafieldDefinition($namespace: String!, $key: String!, $ownerType: MetafieldOwnerType!) {
+            metafieldDefinitions(first: 1, namespace: $namespace, key: $key, ownerType: $ownerType) {
+                edges {
+                    node {
+                        id
+                        namespace
+                        key
+                        type {
+                            name
+                        }
+                    }
+                }
+            }
+        }
+        """
+        
+        variables = {
+            'namespace': namespace,
+            'key': key,
+            'ownerType': owner_type
+        }
+        
+        try:
+            result = self.client.execute_query(query, variables)
+            edges = result.get('data', {}).get('metafieldDefinitions', {}).get('edges', [])
+            
+            if edges:
+                return edges[0]['node']['type']['name']
+            return None
+        except Exception as e:
+            print(f"Error getting metafield definition for {namespace}.{key}: {str(e)}")
+            return None
+
     def add_metafield_to_product(self, product_id: str, namespace: str, key: str, 
                             value: str, field_type: str = "single_line_text_field") -> Dict[str, Any]:
         """
-        Add a metafield to a product with automatic type handling.
+        Add a metafield to a product with automatic type handling and validation.
         """
         # Ensure proper GraphQL ID format
         if not product_id.startswith('gid://shopify/Product/'):
             product_id = f"gid://shopify/Product/{product_id}"
         
-        if field_type=="metaobject_reference":
-            field_type = "list.metaobject_reference"
-            value = value.strip().strip('"').strip("'")
-            value = json.dumps([value])
+        # Clean the value
+        value = value.strip().strip('"').strip("'")
         
-
+        # Special handling for metaobject references
+        if field_type == "metaobject_reference":
+            # Get the ACTUAL definition type from Shopify
+            actual_type = self.get_metafield_definition_type(namespace, key)
+            
+            if actual_type is None:
+                error_msg = f"Metafield definition {namespace}.{key} does not exist. Create it first."
+                print(f"✗ {error_msg}")
+                raise Exception(error_msg)
+            
+            # Use the actual type from Shopify
+            field_type = actual_type
+            
+            # Format value based on actual type
+            if actual_type == "list.metaobject_reference":
+                # List type - must be JSON array
+                value = json.dumps([value])
+            elif actual_type == "metaobject_reference":
+                # Single reference - keep as plain string
+                pass
+            else:
+                # Not a metaobject reference at all
+                print(f"⚠ Warning: {namespace}.{key} is type {actual_type}, not metaobject_reference")
+        
         mutation = """
         mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
             metafieldsSet(metafields: $metafields) {
@@ -255,11 +323,11 @@ class ShopifyProductService:
                 error_messages = [f"{err.get('field')}: {err.get('message')}" for err in user_errors]
                 raise Exception(f"Metafield creation failed: {', '.join(error_messages)}")
             
-            print(f"✓ Added metafield {namespace}.{key} to product {product_id}")
+            print(f"✓ Added metafield {namespace}.{key} (type: {field_type}) to product {product_id}")
             return result
             
         except Exception as e:
-            error_msg = f"Error adding metafield {namespace}.{key} to product {product_id} and {field_type}: {str(e)}"
+            error_msg = f"Error adding metafield {namespace}.{key} to product {product_id}: {str(e)}"
             print(f"✗ {error_msg}")
             raise Exception(error_msg)
 
