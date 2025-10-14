@@ -920,3 +920,135 @@ class ShopifyProductService:
             processed += len(batch)
             if max_products and processed >= max_products:
                 break
+                
+    def get_all_products_with_metafields(self, max_products: Optional[int] = None) -> Iterator[List[Dict]]:
+        """
+        Generator that yields products with ALL their metafields expanded.
+        
+        Args:
+            max_products: Max products to fetch
+            
+        Yields:
+            Batches of products with complete metafields
+        """
+        processed = 0
+        
+        for batch in self.get_products_batch_for_db(batch_size=250):  # Optimized batch size
+            # For each product, fetch ALL its metafields
+            enriched_batch = []
+            for product in batch:
+                product_id = product['id']
+                
+                # Get complete metafields data (with pagination)
+                complete_metafields_data = self.get_complete_product_with_metafields(product_id)
+                
+                # Replace the limited metafields with complete set
+                if complete_metafields_data.get('data', {}).get('product'):
+                    complete_product = complete_metafields_data['data']['product']
+                    product['metafields'] = complete_product.get('metafields', {'edges': []})
+                else:
+                    # If product not found, keep original metafields
+                    product['metafields'] = product.get('metafields', {'edges': []})
+                
+                enriched_batch.append(product)
+            
+            yield enriched_batch
+            
+            processed += len(batch)
+            if max_products and processed >= max_products:
+                break
+
+    def get_all_products_with_complete_metafields(self, max_products: Optional[int] = None) -> Iterator[List[Dict]]:
+        """
+        Generator that yields products with ALL their metafields (using pagination for each product).
+        This is more thorough but slower than get_all_products_with_metafields.
+        
+        Args:
+            max_products: Max products to fetch
+            
+        Yields:
+            Batches of products with ALL metafields (paginated)
+        """
+        processed = 0
+        
+        for batch in self.get_products_batch_for_db(batch_size=100):  # Smaller batches for intensive processing
+            enriched_batch = []
+            
+            for product in batch:
+                product_id = product['id']
+                product_title = product.get('title', 'Unknown')
+                
+                print(f"Fetching ALL metafields for: {product_title} ({product_id})")
+                
+                # This method handles pagination internally for metafields
+                complete_product_data = self.get_complete_product_with_metafields(product_id)
+                
+                if complete_product_data.get('data', {}).get('product'):
+                    # Replace with complete product data that includes ALL metafields
+                    enriched_product = complete_product_data['data']['product']
+                    
+                    # Preserve other fields from original product that might not be in complete data
+                    for key, value in product.items():
+                        if key not in enriched_product:
+                            enriched_product[key] = value
+                    
+                    metafields_count = len(enriched_product.get('metafields', {}).get('edges', []))
+                    print(f"  ✓ Found {metafields_count} metafields for {product_title}")
+                    
+                    enriched_batch.append(enriched_product)
+                else:
+                    print(f"  ⚠ Could not fetch complete data for {product_title}, using original")
+                    enriched_batch.append(product)
+            
+            yield enriched_batch
+            
+            processed += len(batch)
+            if max_products and processed >= max_products:
+                break
+
+    def get_all_products_with_filtered_metafields(self, namespace_filter: Optional[str] = None, 
+                                                max_products: Optional[int] = None) -> Iterator[List[Dict]]:
+        """
+        Generator that yields products with metafields filtered by namespace.
+        
+        Args:
+            namespace_filter: Filter metafields by this namespace (None = all metafields)
+            max_products: Max products to fetch
+            
+        Yields:
+            Batches of products with filtered metafields
+        """
+        processed = 0
+        
+        for batch in self.get_products_batch_for_db(batch_size=250):
+            enriched_batch = []
+            
+            for product in batch:
+                product_id = product['id']
+                
+                if namespace_filter:
+                    # Get metafields filtered by namespace
+                    filtered_metafields_data = self.get_product_metafields(
+                        product_id, 
+                        namespace=namespace_filter
+                    )
+                    
+                    if filtered_metafields_data.get('data', {}).get('product'):
+                        product['metafields'] = filtered_metafields_data['data']['product'].get('metafields', {'edges': []})
+                    else:
+                        product['metafields'] = {'edges': []}
+                else:
+                    # Get all metafields (same as get_all_products_with_metafields)
+                    complete_metafields_data = self.get_complete_product_with_metafields(product_id)
+                    
+                    if complete_metafields_data.get('data', {}).get('product'):
+                        complete_product = complete_metafields_data['data']['product']
+                        product['metafields'] = complete_product.get('metafields', {'edges': []})
+                
+                enriched_batch.append(product)
+            
+            yield enriched_batch
+            
+            processed += len(batch)
+            if max_products and processed >= max_products:
+                break
