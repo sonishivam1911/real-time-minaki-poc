@@ -41,6 +41,7 @@ class MetafieldMigrationService:
         try:
             job_status["status"] = "processing"
             job_status["start_time"] = time.time()
+            job_status["errors"] = []
             
             print(f"Job {job_id}: Starting metafield migration...")
             print(f"Job {job_id}: Total mapping rules: {len(mapping_rules)}")
@@ -71,6 +72,7 @@ class MetafieldMigrationService:
                         
                         metafields_edges = product_data["data"]["product"]["metafields"]["edges"]
                         metafields = [edge["node"] for edge in metafields_edges]
+                        print(f"Job {job_id}: Product '{product_title}' has {metafields}")
                         
                         # Find matching rules and create new metafields
                         new_metafields_created = 0
@@ -83,6 +85,15 @@ class MetafieldMigrationService:
                             # Check if any mapping rule matches
                             for rule in mapping_rules:
                                 if self._matches_rule(metafield, rule):
+                                    print(f"Job {job_id}: MATCH FOUND!")
+                                    print(f"  ├─ Product ID: {product_id}")
+                                    print(f"  ├─ Product Name: '{product_title}'")
+                                    print(f"  ├─ Matched Namespace: {namespace}")
+                                    print(f"  ├─ Matched Key: {key}")
+                                    print(f"  ├─ Matched Value: {value}")
+                                    print(f"  ├─ Will Create: {rule['output_namespace']}.{rule['output_key']}")
+                                    print(f"  └─ New Value: {rule['output_value']}")
+                                    
                                     try:
                                         # Create new metafield using YOUR method
                                         self.shopify.add_metafield_to_product(
@@ -95,13 +106,14 @@ class MetafieldMigrationService:
                                         
                                         new_metafields_created += 1
                                         
-                                        print(f"Job {job_id}: Created {rule['output_namespace']}.{rule['output_key']} "
-                                              f"for product '{product_title}' (matched {namespace}.{key}={value})")
+                                        print(f"Job {job_id}: ✅ SUCCESS - Created {rule['output_namespace']}.{rule['output_key']} for product '{product_title}'")
+                                        print("=" * 80)
                                         
                                     except Exception as e:
                                         error_msg = (f"Error creating metafield for product {product_id} "
                                                    f"({rule['output_namespace']}.{rule['output_key']}): {str(e)}")
-                                        print(error_msg)
+                                        print(f"Job {job_id}: ❌ FAILED - {error_msg}")
+                                        print("=" * 80)
                                         job_status["errors"].append(error_msg)
                         
                         # Update job status
@@ -165,9 +177,8 @@ class MetafieldMigrationService:
         """
         namespace_match = metafield["namespace"] == rule["input_namespace"]
         key_match = metafield["key"] == rule["input_key"]
-        value_match = str(metafield["value"]) == str(rule["input_value"])
         
-        return namespace_match and key_match and value_match
+        return namespace_match and key_match
     
     def preview_migration(
         self, 

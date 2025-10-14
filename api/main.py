@@ -1,6 +1,5 @@
 import uvicorn
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 # Import routers
 from controller.shopify.product.metafield import controller as metafields
@@ -13,21 +12,11 @@ from controller.whatsapp_slack import controller as  whatsapp_slack
 from controller.shopify.product.metaobject import controller as product_metaobjects
 from controller.shopify.metaobject import controller as metaobjects
 from controller.image_editing import controller as image_editing_controller
-from controller.shopify.product.metafield_migration import controller as metafield_migration_routes
 
 app = FastAPI(
     title="PO PDF Processor API", 
     version="1.0.0",
     description="API for Shopify, Zakya, and WhatsApp-Slack integrations"
-)
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
-    allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
 )
 
 app.include_router(
@@ -93,12 +82,6 @@ app.include_router(
     image_editing_controller.router,
     prefix="/api/image-editing",
     tags=["Image Editing"]
-)
-
-app.include_router(
-    metafield_migration_routes.router,
-    prefix="/api/metafield-migration",
-    tags=["Shopify - Metafield Migration"]
 )
 
 @app.get("/", tags=["System"])
