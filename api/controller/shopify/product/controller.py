@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query, Path, HTTPException, Depends
 from typing import Optional
 
-from services.shopify_service import ShopifyGraphQLConnector
+from services.shopify.product import ShopifyProductService
 from utils.schema.shopify_schema import (
     ProductListResponse, 
     ProductResponse, 
@@ -9,70 +9,103 @@ from utils.schema.shopify_schema import (
     ProductUpdateRequest,
     StandardResponse
 )
-from controller.shopify.dependencies import get_shopify_connector
+from controller.shopify.dependencies import get_shopify_product_service
 
 router = APIRouter()
 
 # Dependency to get Product Service
-
 @router.get("/", response_model=ProductListResponse)
-async def get_products(
-    limit: int = Query(20, ge=1, le=250, description="Number of products to fetch"),
-    after: Optional[str] = Query(None, description="Cursor for pagination"),
-    search: Optional[str] = Query(None, description="Search query (Shopify format)"),
-    connector: ShopifyGraphQLConnector = Depends(get_shopify_connector)
+async def get_all_products(
+    connector: ShopifyProductService = Depends(get_shopify_product_service)
 ):
     """
-    Get list of products with pagination.
-    
-    - **limit**: Number of products per page (1-250)
-    - **after**: Pagination cursor from previous response
-    - **search**: Search filter (e.g., 'title:shirt', 'tag:summer')
+    Get ALL products from your Shopify store.
+    Warning: This may take a while for large stores!
     """
     try:
-        result = connector.get_products(
-            first=limit,
-            after=after,
-            query_filter=search
-        )
+        all_products = []
+        batch_count = 0
         
-        if 'data' not in result or 'products' not in result['data']:
-            return ProductListResponse(
-                success=False,
-                message="No products data found",
-                error="Invalid response from Shopify"
-            )
+        print("Starting to fetch ALL products...")
         
-        products_data = result['data']['products']
-        products = [edge['node'] for edge in products_data.get('edges', [])]
+        for product_batch in connector.get_products_batch_for_db(batch_size=50):
+            all_products.extend(product_batch)
+            batch_count += 1
+            print(f"Fetched batch {batch_count} - Total products so far: {len(all_products)}")
         
-        pagination_info = products_data.get('pageInfo', {})
+        print(f"Completed! Total products fetched: {len(all_products)}")
         
         return ProductListResponse(
             success=True,
-            message=f"Retrieved {len(products)} products",
-            products=products,
+            message=f"Retrieved ALL {len(all_products)} products from your store",
+            products=all_products,
             pagination={
-                "has_next_page": pagination_info.get('hasNextPage', False),
-                "has_previous_page": pagination_info.get('hasPreviousPage', False),
-                "end_cursor": pagination_info.get('endCursor'),
-                "start_cursor": pagination_info.get('startCursor')
+                "has_next_page": False,
+                "has_previous_page": False,
+                "end_cursor": None,
+                "start_cursor": None
             },
-            total_count=len(products)
+            total_count=len(all_products)
         )
         
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Error fetching products: {str(e)}"
+            detail=f"Error fetching all products: {str(e)}"
         )
-
+        
+@router.get("/all-with-metaobjects", response_model=ProductListResponse)
+async def get_all_products_with_metaobjects(
+    max_products: Optional[int] = Query(None, description="Maximum number of products to fetch (None = all)"),
+    connector: ShopifyProductService = Depends(get_shopify_product_service)
+):
+    """
+    Get ALL products from your Shopify store WITH their metaobjects expanded.
+    Uses the existing get_all_products_with_metaobjects service method.
+    """
+    try:
+        all_products = []
+        batch_count = 0
+        
+        print(f"Starting to fetch ALL products with metaobjects (max: {max_products or 'unlimited'})...")
+        
+        for product_batch in connector.get_all_products_with_metaobjects(max_products=max_products):
+            all_products.extend(product_batch)
+            batch_count += 1
+            print(f"Processed batch {batch_count} - Total products: {len(all_products)}")
+        
+        # Count total metaobjects
+        total_metaobjects = 0
+        for product in all_products:
+            metaobjects_edges = product.get('metaobjects', {}).get('edges', [])
+            total_metaobjects += len(metaobjects_edges)
+        
+        print(f"🎉 COMPLETED! Fetched {len(all_products)} products with {total_metaobjects} metaobject references")
+        
+        return ProductListResponse(
+            success=True,
+            message=f"Retrieved {len(all_products)} products with metaobjects ({total_metaobjects} metaobject references)",
+            products=all_products,
+            pagination={
+                "has_next_page": False,
+                "has_previous_page": False,
+                "end_cursor": None,
+                "start_cursor": None
+            },
+            total_count=len(all_products)
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching all products with metaobjects: {str(e)}"
+        )
 
 @router.get("/{product_id}", response_model=ProductResponse)
 async def get_product(
     product_id: str = Path(..., description="Shopify product ID"),
     include_all_metafields: bool = Query(False, description="Include all metafields (may be slow)"),
-    connector: ShopifyGraphQLConnector = Depends(get_shopify_connector)
+    connector: ShopifyProductService = Depends(get_shopify_product_service)
 ):
     """
     Get a single product by ID.
@@ -112,7 +145,7 @@ async def get_product(
 @router.post("/", response_model=ProductResponse)
 async def create_product(
     product_data: ProductCreateRequest,
-    connector: ShopifyGraphQLConnector = Depends(get_shopify_connector)
+    connector: ShopifyProductService = Depends(get_shopify_product_service)
 ):
     """
     Create a new product.
@@ -169,7 +202,7 @@ async def create_product(
 async def update_product(
     product_id: str = Path(..., description="Shopify product ID"),
     product_data: ProductUpdateRequest = None,
-    connector: ShopifyGraphQLConnector = Depends(get_shopify_connector)
+    connector: ShopifyProductService = Depends(get_shopify_product_service)
 ):
     """
     Update an existing product.
@@ -229,7 +262,7 @@ async def update_product(
 @router.delete("/{product_id}", response_model=StandardResponse)
 async def delete_product(
     product_id: str = Path(..., description="Shopify product ID"),
-    connector: ShopifyGraphQLConnector = Depends(get_shopify_connector)
+    connector: ShopifyProductService = Depends(get_shopify_product_service)
 ):
     """
     Delete a product.
