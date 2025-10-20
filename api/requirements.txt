@@ -13,3 +13,9 @@ openpyxl
 slack-sdk
 opencv-python
 pillow
+langchain
+langchain-groq
+langgraph
+langsmith
+python-dotenv
+json-repair
