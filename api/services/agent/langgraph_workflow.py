@@ -2,16 +2,21 @@ from typing import TypedDict, List, Dict, Optional, Annotated
 from langgraph.graph import StateGraph, END
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
+from langsmith import traceable
+from dotenv import load_dotenv
 import pandas as pd
 import json
 import logging
 import os
 from services.agent.keyword_filter import KeywordFilter
-from agent.product_writer.prompt import kundan_jewelry_prompt
+from agent.product_writer.kundan_jewellery_prompt import kundan_jewelry_prompt
+from agent.product_writer.crystal_jewellery_prompt import crystal_jewelry_prompt
 from agent.output_parser import ActionParser
 
-logger = logging.getLogger("LangGraph Workflow")
+# Load environment variables for LangSmith tracing
+load_dotenv()
 
+logger = logging.getLogger("LangGraph Workflow")
 
 class AgentState(TypedDict):
     """State that flows through the LangGraph workflow"""
@@ -31,6 +36,7 @@ class AgentState(TypedDict):
     error: Optional[str]
 
 
+@traceable(name="preprocess_node", run_type="chain")
 def preprocess_node(state: AgentState) -> AgentState:
     """
     Node 1: Extract relevant product attributes
@@ -55,9 +61,11 @@ def preprocess_node(state: AgentState) -> AgentState:
     return state
 
 
+@traceable(name="keyword_filter_node", run_type="chain")
 def keyword_filter_node(state: AgentState) -> AgentState:
     """
     Node 2: Filter and rank keywords using KeywordFilter
+    Supports both Kundan-Polki and American Diamond/Crystal lines
     """
     logger.info("🔍 Node 2: Filtering keywords")
     
@@ -76,6 +84,19 @@ def keyword_filter_node(state: AgentState) -> AgentState:
                 top_n=30
             )
             state['filtered_keywords'] = filtered_df['Keyword'].tolist()
+        
+        elif 'american diamond' in line_lower or 'crystal' in line_lower or 'ad' in line_lower:
+            logger.info("   Using American Diamond/Crystal filter")
+            # Extract product style from product attributes if available
+            product_style = state['product_row'].get('style', None)
+            filtered_df = filter_system.filter_for_american_diamond_crystal(
+                product_color=state['colors'],
+                product_style=product_style,
+                min_searches=1000,
+                top_n=30
+            )
+            state['filtered_keywords'] = filtered_df['Keyword'].tolist()
+        
         else:
             logger.warning(f"   Line '{state['line']}' not yet supported")
             state['filtered_keywords'] = []
@@ -93,6 +114,7 @@ def keyword_filter_node(state: AgentState) -> AgentState:
     return state
 
 
+@traceable(name="prompt_selection_node", run_type="chain")
 def prompt_selection_node(state: AgentState) -> AgentState:
     """
     Node 3: Select the appropriate prompt based on category and line
@@ -102,16 +124,22 @@ def prompt_selection_node(state: AgentState) -> AgentState:
     category = state['category'].lower()
     line = state['line'].lower()
     
+    print(f"Category: {category}, Line: {line}")
+    
     # For now, only Kundan Jewelry Sets
     if 'jewelry set' in category or 'jewellery set' in category:
         if 'kundan' in line or 'polki' in line:
             state['selected_prompt'] = kundan_jewelry_prompt
-            logger.info("   ✅ Selected: PRODUCT_CONTENT_PROMPT")
+            logger.info("✅ Selected: kundan_jewelry_prompt")
+        elif 'american diamond' in line or 'diamond' in line:
+            state['selected_prompt'] = crystal_jewelry_prompt
+            logger.info(" ✅ Selected: crystal_jewelry_prompt")
     
 
     return state
 
 
+@traceable(name="generation_node", run_type="chain")
 def generation_node(state: AgentState) -> AgentState:
     """
     Node 4: Generate content using LLM via Groq
@@ -123,7 +151,7 @@ def generation_node(state: AgentState) -> AgentState:
         try:
             logger.info(" Attempting to use llama3-8b-8192 model...")
             llm = ChatGroq(
-                model="llama-3.1-8b-instant",  # ⭐ USE THIS!
+                model="llama-3.1-8b-instant",  
                 temperature=0.7,
                 max_tokens=2000,
                 groq_api_key=os.environ.get("GROQ_API_KEY")
@@ -222,6 +250,7 @@ def generation_node(state: AgentState) -> AgentState:
     return state
 
 
+@traceable(name="build_langgraph_workflow", run_type="chain")
 def build_langgraph_workflow() -> StateGraph:
     """
     Build the complete LangGraph workflow

@@ -6,7 +6,7 @@ from langgraph.graph import StateGraph, END
 from langsmith import traceable
 
 from ...utils.schema.product_writer_agent import AgentState, ProductOutput, ActionInput
-from .prompt import PRODUCT_CONTENT_PROMPT
+from .kundan_jewellery_prompt import PRODUCT_CONTENT_PROMPT
 
 
 class GraphState(TypedDict):
