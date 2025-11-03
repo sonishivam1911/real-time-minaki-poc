@@ -54,6 +54,7 @@ class ProductWriterService:
                     'colors': '',
                     'filtered_keywords': [],
                     'selected_prompt': '',
+                    'image_url': None,
                     'generated_content': None,
                     'error': None
                 }

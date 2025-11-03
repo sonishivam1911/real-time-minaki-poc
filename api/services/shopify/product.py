@@ -1052,3 +1052,106 @@ class ShopifyProductService:
             processed += len(batch)
             if max_products and processed >= max_products:
                 break
+    
+    def add_image_to_product(self, product_id: str, image_url: str, alt_text: str = None) -> Dict[str, Any]:
+        """
+        Add an image to a product using productImageCreate mutation
+        
+        Args:
+            product_id: Shopify product ID
+            image_url: URL of the image to add
+            alt_text: Alt text for the image
+            
+        Returns:
+            Image creation result
+        """
+        if not product_id.startswith("gid://shopify/Product/"):
+            product_id = f"gid://shopify/Product/{product_id}"
+        
+        mutation = """
+        mutation productImageCreate($productId: ID!, $image: ImageInput!) {
+            productImageCreate(productId: $productId, image: $image) {
+                image {
+                    id
+                    url
+                    altText
+                    width
+                    height
+                }
+                userErrors {
+                    field
+                    message
+                }
+            }
+        }
+        """
+        
+        image_input = {
+            "src": image_url
+        }
+        
+        if alt_text:
+            image_input["altText"] = alt_text
+        
+        variables = {
+            "productId": product_id,
+            "image": image_input
+        }
+        
+        try:
+            result = self.client.execute_query(mutation, variables)
+            return result
+        except Exception as e:
+            raise
+
+    def add_multiple_images_to_product(self, product_id: str, image_urls: List[str], title: str = "") -> List[Dict[str, Any]]:
+        """
+        Add multiple images to a product
+        
+        Args:
+            product_id: Shopify product ID
+            image_urls: List of image URLs
+            title: Product title for alt text generation
+            
+        Returns:
+            List of image creation results
+        """
+        results = []
+        
+        for i, image_url in enumerate(image_urls, 1):
+            if image_url and image_url.strip():
+                try:
+                    alt_text = f"Minaki {title} - Image {i}" if title else f"Product Image {i}"
+                    result = self.add_image_to_product(product_id, image_url.strip(), alt_text)
+                    
+                    if result.get("data", {}).get("productImageCreate", {}).get("image"):
+                        results.append({
+                            "success": True,
+                            "position": i,
+                            "url": image_url.strip(),
+                            "image_id": result["data"]["productImageCreate"]["image"]["id"],
+                            "error": None
+                        })
+                    else:
+                        errors = result.get("data", {}).get("productImageCreate", {}).get("userErrors", [])
+                        results.append({
+                            "success": False,
+                            "position": i,
+                            "url": image_url.strip(),
+                            "image_id": None,
+                            "error": str(errors)
+                        })
+                    
+                    # Rate limiting - wait between image uploads
+                    time.sleep(1.0)
+                    
+                except Exception as e:
+                    results.append({
+                        "success": False,
+                        "position": i,
+                        "url": image_url.strip(),
+                        "image_id": None,
+                        "error": str(e)
+                    })
+        
+        return results
