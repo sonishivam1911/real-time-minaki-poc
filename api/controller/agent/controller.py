@@ -100,21 +100,14 @@ async def upload_and_generate_content(
         
         product_dicts = []
         for product in validated_rows:
-            # Use attribute access (.property) instead of dictionary access ['property']
-            # Or use model_dump() to convert the entire model to a dictionary
-            product_dict = {
-                'product_sku': product.product_sku if product.product_sku else 'Unknown',
-                'category': product.category if product.category else '',
-                'line': product.line if product.line else '',
-                'style': product.style if product.style else '',
-                'finish': product.finish if product.finish else '',
-                'work': product.work if product.work else '',
-                'components': product.components if product.components else '',
-                'finding': product.finding if product.finding else '',
-                'primary_color': product.primary_color if product.primary_color else '',
-                'secondary_color': product.secondary_color if product.secondary_color else '',
-                'occasions': product.occasions if product.occasions else '',
-            }
+            # Use model_dump() to get ALL fields from the ProductCSVRow model
+            product_dict = product.model_dump()
+            
+            # Clean up None values to empty strings for better processing
+            for key, value in product_dict.items():
+                if value is None:
+                    product_dict[key] = ''
+                    
             product_dicts.append(product_dict)
         
         
