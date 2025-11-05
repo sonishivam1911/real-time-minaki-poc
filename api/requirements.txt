@@ -19,3 +19,4 @@ langgraph
 langsmith
 python-dotenv
 json-repair
+xlrd

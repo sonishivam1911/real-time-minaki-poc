@@ -392,8 +392,6 @@ class ShopifyProductService:
                 raise Exception(f"Bulk metafield update failed: {', '.join(error_messages)}")
             
             created_count = len(mutation_data.get('metafields', []))
-            print(f"✓ Bulk updated {created_count} metafields")
-            
             return result
             
         except Exception as e:

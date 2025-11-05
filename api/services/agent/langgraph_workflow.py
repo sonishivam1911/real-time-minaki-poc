@@ -8,8 +8,8 @@ import pandas as pd
 import json
 import logging
 import os
+import time
 from services.agent.keyword_filter import KeywordFilter
-from services.agent.visual_context_service import MinakiVisualContextService
 from services.agent.duplicate_checker import DuplicateNameChecker
 from services.shopify.product import ShopifyProductService
 from agent.product_writer.kundan_jewellery_prompt import kundan_jewelry_prompt
@@ -33,8 +33,7 @@ class AgentState(TypedDict):
     colors: str
     filtered_keywords: List[str]
     selected_prompt: str
-    image_description: Optional[str]  # Concise image description for LLM
-    visual_context: Optional[Dict]  # Full visual analysis data
+    used_names: List[str]  # Track names already used to avoid duplicates
     image_url: Optional[str]  # First image URL for attaching to generated content
     
     # Output
@@ -51,6 +50,7 @@ def preprocess_node(state: AgentState) -> AgentState:
     logger.info("🔧 Node 1: Preprocessing product attributes")
     
     product = state['product_row']
+    logger.debug(f"Product row data: {product}")
     
     # Extract key attributes
     state['category'] = product.get('category', '')
@@ -61,69 +61,21 @@ def preprocess_node(state: AgentState) -> AgentState:
     secondary = product.get('secondary_color', '')
     state['colors'] = f"{primary} {secondary}".strip()
     
-    # Initialize image_url
-    state['image_url'] = None
+    # Initialize used names list (this should be passed from outside in real usage)
+    # If not provided, initialize as empty list
+    if 'used_names' not in state or state['used_names'] is None:
+        state['used_names'] = []
     
-    logger.info(f"   Category: {state['category']}")
-    logger.info(f"   Line: {state['line']}")
-    logger.info(f"   Colors: {state['colors']}")
+    # Extract image URL from product data
+    image_url = None
+    # Try common image field names
+    for field in ['high_resolution_1', 'image_url', 'image_1', 'primary_image']:
+        if field in product and product[field]:
+            image_url = product[field]
+            break
     
-    return state
-
-
-@traceable(name="image_analysis_node", run_type="chain")
-def image_analysis_node(state: AgentState) -> AgentState:
-    """
-    Node 2: Analyze product images using Minaki Image RAG
-    """
-    logger.info("🖼️  Node 2: Analyzing product images")
+    state['image_url'] = image_url
     
-    try:
-        # Initialize Visual Context Service
-        visual_service = MinakiVisualContextService()
-        
-        # Extract image URLs from product data
-        print(f" Product row keys: {list(state['product_row'].keys())}")
-        print(f" high_resolution_1 value: {state['product_row'].get('high_resolution_1', 'NOT FOUND')}")
-        image_urls = visual_service.extract_image_urls_from_csv_row(state['product_row'])
-        
-        if not image_urls:
-            logger.warning("   No image URLs found in product data")
-            state['image_description'] = "No images available for analysis."
-            state['visual_context'] = {}
-            state['image_url'] = None
-            return state
-        
-        # Analyze the first available image
-        first_image_url = image_urls[0]
-        state['image_url'] = first_image_url  # Store image URL for attaching to generated content
-        logger.info(f"   Analyzing image: {first_image_url[:100]}...")
-        
-        # Create visual context using multimodal LLM
-        visual_context = visual_service.create_visual_context(first_image_url)
-        print(f"Visual context: {visual_context}")
-        
-        if 'error' in visual_context:
-            logger.warning(f"   Image analysis failed: {visual_context['error']}")
-            state['image_description'] = "Image analysis unavailable."
-            state['visual_context'] = {}
-        else:
-            # Get token-efficient description
-            image_description = visual_context.get('token_efficient_description', 'Image analysis completed.')
-            state['image_description'] = image_description
-            state['visual_context'] = visual_context
-            
-            analysis = visual_context.get('analysis', {})
-            logger.info(f"   ✅ Image analyzed - Collection: {analysis.get('suggested_collection', 'unknown')}")
-            logger.info(f"   Style: {analysis.get('style_aesthetic', 'unknown')}")
-            logger.info(f"   Complexity: {analysis.get('complexity_level', 'unknown')}")
-            logger.info(f"   Name tone: {analysis.get('name_tone', 'unknown')}")
-    
-    except Exception as e:
-        logger.error(f"   ❌ Image analysis error: {str(e)}")
-        state['error'] = f"Image analysis failed: {str(e)}"
-        state['image_description'] = "Image analysis failed."
-        state['visual_context'] = {}
     
     return state
 
@@ -131,10 +83,9 @@ def image_analysis_node(state: AgentState) -> AgentState:
 @traceable(name="keyword_filter_node", run_type="chain")
 def keyword_filter_node(state: AgentState) -> AgentState:
     """
-    Node 3: Filter and rank keywords using KeywordFilter
+    Node 2: Filter and rank keywords using KeywordFilter
     Supports both Kundan-Polki and American Diamond/Crystal lines
     """
-    logger.info("🔍 Node 3: Filtering keywords")
     
     try:
         # Initialize keyword filter
@@ -177,21 +128,17 @@ def keyword_filter_node(state: AgentState) -> AgentState:
         state['error'] = f"Keyword filtering failed: {str(e)}"
         state['filtered_keywords'] = []
         
-    print(f"Filtered keywords: {state['filtered_keywords']}")
     return state
 
 
 @traceable(name="prompt_selection_node", run_type="chain")
 def prompt_selection_node(state: AgentState) -> AgentState:
     """
-    Node 4: Select the appropriate prompt based on category and line
+    Node 3: Select the appropriate prompt based on category and line
     """
-    logger.info("📝 Node 4: Selecting prompt template")
     
     category = state['category'].lower()
     line = state['line'].lower()
-    
-    print(f"Category: {category}, Line: {line}")
     
     # For now, only Kundan Jewelry Sets
     if 'jewelry set' in category or 'jewellery set' in category:
@@ -216,9 +163,13 @@ def prompt_selection_node(state: AgentState) -> AgentState:
 @traceable(name="generation_node", run_type="chain")
 def generation_node(state: AgentState) -> AgentState:
     """
-    Node 5: Generate content using LLM via Groq
+    Node 4: Generate content using LLM via Groq with rate limiting
     """
     logger.info("🤖 Node 4: Generating content with Groq LLM")
+    
+    # Add delay to handle rate limiting
+    logger.info("⏱️  Adding 10-second delay to handle Groq rate limits...")
+    time.sleep(10)
     
     try:
         # Try to initialize Groq LLM with primary model
@@ -255,13 +206,13 @@ def generation_node(state: AgentState) -> AgentState:
             "occasions": product.get('occasions', ''),
             "name_meaning": '',  # Not in CSV, leave empty
             "keywords": ', '.join(state['filtered_keywords']),
-            "image_analysis": state.get('image_description', 'No image analysis available.')
+            "used_names": ', '.join(state['used_names']) if state['used_names'] else 'None'
         }
+    
         
         # Format the prompt with product details
         try:
             filled_prompt = state['selected_prompt'].format(**prompt_params)
-            logger.info("Successfully formatted prompt with product details")
         except KeyError as e:
             print(f"   ❌ Error formatting prompt: {str(e)}")
             # Attempt a fix by treating the selected_prompt as plain text with a .format_messages() method
@@ -272,9 +223,32 @@ def generation_node(state: AgentState) -> AgentState:
             else:
                 raise
         
-        logger.info("   Calling Groq LLM...")
-        response = llm.invoke(filled_prompt)
-        content_text = response.content.strip()
+        # Add retry logic for rate limiting
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            try:
+                logger.info(f"   🚀 Making API call (attempt {retry_count + 1}/{max_retries})...")
+                response = llm.invoke(filled_prompt)
+                content_text = response.content.strip()
+                break  # Success, exit retry loop
+                
+            except Exception as api_error:
+                error_str = str(api_error).lower()
+                if "429" in error_str or "rate limit" in error_str or "too many requests" in error_str:
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        wait_time = 15 * retry_count  # Exponential backoff: 15s, 30s, 45s
+                        logger.warning(f"   ⚠️  Rate limited! Waiting {wait_time}s before retry {retry_count + 1}/{max_retries}...")
+                        time.sleep(wait_time)
+                    else:
+                        logger.error(f"   ❌ Max retries reached for rate limiting")
+                        raise api_error
+                else:
+                    # Non-rate-limit error, don't retry
+                    logger.error(f"   ❌ Non-rate-limit API error: {str(api_error)}")
+                    raise api_error
         
         # Use ActionParser for robust JSON handling
         parser = ActionParser(use_json_repair=True)
@@ -295,29 +269,12 @@ def generation_node(state: AgentState) -> AgentState:
             logger.info("   ✅ Content generated and parsed successfully")
             logger.info(f"   Title: {state['generated_content'].get('title', 'N/A')}")
             
-            # Check for duplicate title immediately after generation
+            # Simply track the generated name for future reference
             if state['generated_content'].get('title'):
-                duplicate_checker = DuplicateNameChecker()
                 generated_title = state['generated_content']['title']
-                
-                # Check if title is duplicate
-                if duplicate_checker.check_for_duplicates(generated_title):
-                    logger.warning(f"   ⚠️  Duplicate title detected: '{generated_title}'")
-                    
-                    # Generate unique variation using visual context
-                    visual_context = state.get('visual_context', {})
-                    unique_title = duplicate_checker.generate_unique_title(
-                        base_title=generated_title,
-                        visual_context=visual_context
-                    )
-                    
-                    if unique_title and unique_title != generated_title:
-                        state['generated_content']['title'] = unique_title
-                        logger.info(f"   ✅ Duplicate resolved: '{unique_title}'")
-                    else:
-                        logger.warning(f"   Could not generate unique title for: {generated_title}")
-                else:
-                    logger.info(f"   ✅ Title is unique: '{generated_title}'")
+                title_name = generated_title.replace(' Jewellery Set', '').replace(' Set', '').strip()
+                state['used_names'].append(title_name)
+                logger.info(f"   ✅ Generated title: '{generated_title}' - Name '{title_name}' added to used names")
         else:
             # Manual fallback parsing
             logger.info("   ActionParser could not extract content, trying manual parsing...")
@@ -373,15 +330,13 @@ def build_langgraph_workflow() -> StateGraph:
     
     # Add nodes
     workflow.add_node("preprocess", preprocess_node)
-    workflow.add_node("image_analysis", image_analysis_node)
     workflow.add_node("keyword_filter", keyword_filter_node)
     workflow.add_node("prompt_selection", prompt_selection_node)
     workflow.add_node("generate", generation_node)
     
     # Define edges
     workflow.set_entry_point("preprocess")
-    workflow.add_edge("preprocess", "image_analysis")
-    workflow.add_edge("image_analysis", "keyword_filter")
+    workflow.add_edge("preprocess", "keyword_filter")
     workflow.add_edge("keyword_filter", "prompt_selection")
     workflow.add_edge("prompt_selection", "generate")
     workflow.add_edge("generate", END)
