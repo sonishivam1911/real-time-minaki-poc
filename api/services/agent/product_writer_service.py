@@ -1,6 +1,7 @@
 import pandas as pd
 from typing import List, Dict
 import logging
+import time
 from services.agent.langgraph_workflow import build_langgraph_workflow
 
 logger = logging.getLogger("Product Writer Service")
@@ -38,11 +39,16 @@ class ProductWriterService:
         logger.info(f"🚀 Starting content generation for {len(product_rows)} products")
         
         results = []
+        used_names = []  # Track used names across all products
         
         for idx, product_row in enumerate(product_rows, 1):
-            logger.info(f"\n{'='*80}")
-            logger.info(f"Processing Product {idx}/{len(product_rows)}: {product_row.get('product_sku', 'Unknown')}")
-            logger.info(f"{'='*80}")
+            
+            logger.info(f"📝 Processing product {idx}/{len(product_rows)}: {product_row.get('product_sku', 'Unknown SKU')}")
+            
+            # Add delay between products to prevent rate limiting (except for first product)
+            if idx > 1:
+                logger.info("⏱️  Adding 1-second delay between products...")
+                time.sleep(1)
             
             try:
                 # Initialize state
@@ -54,6 +60,7 @@ class ProductWriterService:
                     'colors': '',
                     'filtered_keywords': [],
                     'selected_prompt': '',
+                    'used_names': used_names.copy(),  # Pass current used names
                     'image_url': None,
                     'generated_content': None,
                     'error': None
@@ -61,6 +68,9 @@ class ProductWriterService:
                 
                 # Run through workflow
                 final_state = self.workflow.invoke(initial_state)
+                
+                # Update used_names list with any new names from this workflow run
+                used_names = final_state.get('used_names', used_names)
                 
                 # Check for errors
                 if final_state.get('error'):
@@ -96,11 +106,5 @@ class ProductWriterService:
                     'error': str(e),
                     'content': None
                 })
-        
-        # Summary
-        success_count = sum(1 for r in results if r['success'])
-        logger.info(f"\n{'='*80}")
-        logger.info(f"GENERATION COMPLETE: {success_count}/{len(results)} successful")
-        logger.info(f"{'='*80}\n")
         
         return results

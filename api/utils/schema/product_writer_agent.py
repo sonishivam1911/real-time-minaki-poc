@@ -167,7 +167,7 @@ class FullShopifyProductInput(BaseModel):
     product_type: str = Field(..., description="Product type")
     vendor: str = Field("MINAKI", description="Vendor name")
     tags: List[str] = Field([], description="Product tags")
-    status: str = Field("ACTIVE", description="Product status")
+    status: str = Field("DRAFT", description="Product status")
     
     # SEO
     seo_title: str = Field(..., description="SEO title")
