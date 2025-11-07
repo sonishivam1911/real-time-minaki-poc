@@ -92,6 +92,43 @@ class Settings(BaseSettings):
         except Exception as e:
             print(f"Error refreshing token: {e}")
             return {}
+    
+    def get_auth_headers(self) -> dict:
+        """
+        Get authentication headers for Zakya API requests.
+        Returns headers with current access token.
+        """
+        try:
+            access_token = self.get_access_token()
+            if not access_token:
+                print("Warning: No access token available for auth headers")
+                return {
+                    "Content-Type": "application/json"
+                }
+            
+            return {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+        except Exception as e:
+            print(f"Error getting auth headers: {e}")
+            return {
+                "Content-Type": "application/json"
+            }
+    
+    def refresh_access_token(self) -> Optional[str]:
+        """
+        Force refresh the access token and return it.
+        """
+        try:
+            refresh_data = self._get_token_from_refresh()
+            if 'access_token' in refresh_data:
+                self.ACCESS_TOKEN = refresh_data['access_token']
+                return self.ACCESS_TOKEN
+            return None
+        except Exception as e:
+            print(f"Error forcing token refresh: {e}")
+            return None
         
     def get_zakya_connection(self) -> dict:
         """Create zakya connection object."""
