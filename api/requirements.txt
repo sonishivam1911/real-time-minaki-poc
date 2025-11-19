@@ -15,7 +15,11 @@ opencv-python
 pillow
 langchain
 langchain-groq
+langchain-community
 langgraph
 langsmith
 python-dotenv
 json-repair
+xlrd
+duckduckgo-search
+ddgs

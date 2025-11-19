@@ -91,12 +91,13 @@ class ShopifyProductService:
         
         return {"data": {"product": product}}
 
-    def get_products_batch_for_db(self, batch_size: int = 50) -> Iterator[List[Dict]]:
+    def get_products_batch_for_db(self, batch_size: int = 50, include_draft: bool = False) -> Iterator[List[Dict]]:
         """
         Generator that yields batches of products for database storage.
         
         Args:
             batch_size: Number of products per batch
+            include_draft: If False (default), fetch only ACTIVE products. If True, fetch both ACTIVE and DRAFT products.
             
         Yields:
             List of product dictionaries
@@ -105,7 +106,7 @@ class ShopifyProductService:
         
         while True:
             try:
-                result = self.get_products(first=batch_size, after=cursor)
+                result = self.get_products(first=batch_size, after=cursor, include_draft=include_draft)
                 
                 if not result.get('data', {}).get('products', {}).get('edges'):
                     break
@@ -392,8 +393,6 @@ class ShopifyProductService:
                 raise Exception(f"Bulk metafield update failed: {', '.join(error_messages)}")
             
             created_count = len(mutation_data.get('metafields', []))
-            print(f"✓ Bulk updated {created_count} metafields")
-            
             return result
             
         except Exception as e:
@@ -401,8 +400,16 @@ class ShopifyProductService:
             raise
 
     def get_products(self, first: int = 10, after: Optional[str] = None, 
-                    query_filter: Optional[str] = None) -> Dict[str, Any]:
-        """Fetch products using GraphQL with pagination."""
+                    query_filter: Optional[str] = None, include_draft: bool = False) -> Dict[str, Any]:
+        """
+        Fetch products using GraphQL with pagination.
+        
+        Args:
+            first: Number of products to fetch
+            after: Cursor for pagination
+            query_filter: Custom query filter
+            include_draft: If False (default), fetch only ACTIVE products. If True, fetch both ACTIVE and DRAFT products.
+        """
         query = """
         query getProducts($first: Int!, $after: String, $query: String) {
             products(first: $first, after: $after, query: $query) {
@@ -472,8 +479,19 @@ class ShopifyProductService:
         variables = {'first': first}
         if after:
             variables['after'] = after
+        
+        # Handle query filter with status filtering
         if query_filter:
+            # If custom query is provided, use it as-is
             variables['query'] = query_filter
+        else:
+            # Apply default status filtering based on include_draft flag
+            if include_draft:
+                # Fetch both ACTIVE and DRAFT products
+                variables['query'] = "status:active OR status:draft"
+            else:
+                # Fetch only ACTIVE products (default behavior)
+                variables['query'] = "status:active"
         
         return self.client.execute_query(query, variables)
 
@@ -894,19 +912,20 @@ class ShopifyProductService:
         
         return self.client.execute_query(mutation, {'metafields': metafields})
 
-    def get_all_products_with_metaobjects(self, max_products: Optional[int] = None) -> Iterator[List[Dict]]:
+    def get_all_products_with_metaobjects(self, max_products: Optional[int] = None, include_draft: bool = False) -> Iterator[List[Dict]]:
         """
         Generator that yields products with their metaobjects expanded.
         
         Args:
             max_products: Max products to fetch
+            include_draft: If False (default), fetch only ACTIVE products. If True, fetch both ACTIVE and DRAFT products.
             
         Yields:
             Batches of products with metaobjects
         """
         processed = 0
         
-        for batch in self.get_products_batch_for_db(batch_size=50):
+        for batch in self.get_products_batch_for_db(batch_size=50, include_draft=include_draft):
             # For each product, fetch its metaobjects
             enriched_batch = []
             for product in batch:
@@ -921,19 +940,20 @@ class ShopifyProductService:
             if max_products and processed >= max_products:
                 break
                 
-    def get_all_products_with_metafields(self, max_products: Optional[int] = None) -> Iterator[List[Dict]]:
+    def get_all_products_with_metafields(self, max_products: Optional[int] = None, include_draft: bool = False) -> Iterator[List[Dict]]:
         """
         Generator that yields products with ALL their metafields expanded.
         
         Args:
             max_products: Max products to fetch
+            include_draft: If False (default), fetch only ACTIVE products. If True, fetch both ACTIVE and DRAFT products.
             
         Yields:
             Batches of products with complete metafields
         """
         processed = 0
         
-        for batch in self.get_products_batch_for_db(batch_size=250):  # Optimized batch size
+        for batch in self.get_products_batch_for_db(batch_size=250, include_draft=include_draft):  # Optimized batch size
             # For each product, fetch ALL its metafields
             enriched_batch = []
             for product in batch:
@@ -958,20 +978,21 @@ class ShopifyProductService:
             if max_products and processed >= max_products:
                 break
 
-    def get_all_products_with_complete_metafields(self, max_products: Optional[int] = None) -> Iterator[List[Dict]]:
+    def get_all_products_with_complete_metafields(self, max_products: Optional[int] = None, include_draft: bool = False) -> Iterator[List[Dict]]:
         """
         Generator that yields products with ALL their metafields (using pagination for each product).
         This is more thorough but slower than get_all_products_with_metafields.
         
         Args:
             max_products: Max products to fetch
+            include_draft: If False (default), fetch only ACTIVE products. If True, fetch both ACTIVE and DRAFT products.
             
         Yields:
             Batches of products with ALL metafields (paginated)
         """
         processed = 0
         
-        for batch in self.get_products_batch_for_db(batch_size=100):  # Smaller batches for intensive processing
+        for batch in self.get_products_batch_for_db(batch_size=100, include_draft=include_draft):  # Smaller batches for intensive processing
             enriched_batch = []
             
             for product in batch:
@@ -1007,20 +1028,21 @@ class ShopifyProductService:
                 break
 
     def get_all_products_with_filtered_metafields(self, namespace_filter: Optional[str] = None, 
-                                                max_products: Optional[int] = None) -> Iterator[List[Dict]]:
+                                                max_products: Optional[int] = None, include_draft: bool = False) -> Iterator[List[Dict]]:
         """
         Generator that yields products with metafields filtered by namespace.
         
         Args:
             namespace_filter: Filter metafields by this namespace (None = all metafields)
             max_products: Max products to fetch
+            include_draft: If False (default), fetch only ACTIVE products. If True, fetch both ACTIVE and DRAFT products.
             
         Yields:
             Batches of products with filtered metafields
         """
         processed = 0
         
-        for batch in self.get_products_batch_for_db(batch_size=250):
+        for batch in self.get_products_batch_for_db(batch_size=250, include_draft=include_draft):
             enriched_batch = []
             
             for product in batch:
@@ -1052,3 +1074,106 @@ class ShopifyProductService:
             processed += len(batch)
             if max_products and processed >= max_products:
                 break
+    
+    def add_image_to_product(self, product_id: str, image_url: str, alt_text: str = None) -> Dict[str, Any]:
+        """
+        Add an image to a product using productImageCreate mutation
+        
+        Args:
+            product_id: Shopify product ID
+            image_url: URL of the image to add
+            alt_text: Alt text for the image
+            
+        Returns:
+            Image creation result
+        """
+        if not product_id.startswith("gid://shopify/Product/"):
+            product_id = f"gid://shopify/Product/{product_id}"
+        
+        mutation = """
+        mutation productImageCreate($productId: ID!, $image: ImageInput!) {
+            productImageCreate(productId: $productId, image: $image) {
+                image {
+                    id
+                    url
+                    altText
+                    width
+                    height
+                }
+                userErrors {
+                    field
+                    message
+                }
+            }
+        }
+        """
+        
+        image_input = {
+            "src": image_url
+        }
+        
+        if alt_text:
+            image_input["altText"] = alt_text
+        
+        variables = {
+            "productId": product_id,
+            "image": image_input
+        }
+        
+        try:
+            result = self.client.execute_query(mutation, variables)
+            return result
+        except Exception as e:
+            raise
+
+    def add_multiple_images_to_product(self, product_id: str, image_urls: List[str], title: str = "") -> List[Dict[str, Any]]:
+        """
+        Add multiple images to a product
+        
+        Args:
+            product_id: Shopify product ID
+            image_urls: List of image URLs
+            title: Product title for alt text generation
+            
+        Returns:
+            List of image creation results
+        """
+        results = []
+        
+        for i, image_url in enumerate(image_urls, 1):
+            if image_url and image_url.strip():
+                try:
+                    alt_text = f"Minaki {title} - Image {i}" if title else f"Product Image {i}"
+                    result = self.add_image_to_product(product_id, image_url.strip(), alt_text)
+                    
+                    if result.get("data", {}).get("productImageCreate", {}).get("image"):
+                        results.append({
+                            "success": True,
+                            "position": i,
+                            "url": image_url.strip(),
+                            "image_id": result["data"]["productImageCreate"]["image"]["id"],
+                            "error": None
+                        })
+                    else:
+                        errors = result.get("data", {}).get("productImageCreate", {}).get("userErrors", [])
+                        results.append({
+                            "success": False,
+                            "position": i,
+                            "url": image_url.strip(),
+                            "image_id": None,
+                            "error": str(errors)
+                        })
+                    
+                    # Rate limiting - wait between image uploads
+                    time.sleep(1.0)
+                    
+                except Exception as e:
+                    results.append({
+                        "success": False,
+                        "position": i,
+                        "url": image_url.strip(),
+                        "image_id": None,
+                        "error": str(e)
+                    })
+        
+        return results

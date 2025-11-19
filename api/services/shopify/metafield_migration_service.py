@@ -2,6 +2,8 @@ import time
 from typing import List, Dict, Any
 from .product import ShopifyProductService
 
+from utils.logger import logger
+
 
 class MetafieldMigrationService:
     """
@@ -42,10 +44,10 @@ class MetafieldMigrationService:
             job_status["status"] = "processing"
             job_status["start_time"] = time.time()
             job_status["errors"] = []
-            
-            print(f"Job {job_id}: Starting metafield migration...")
-            print(f"Job {job_id}: Total mapping rules: {len(mapping_rules)}")
-            
+
+            logger.info(f"Job {job_id}: Starting metafield migration...")
+            logger.info(f"Job {job_id}: Total mapping rules: {len(mapping_rules)}")
+
             # Process products in batches using YOUR existing method
             batch_number = 0
             
@@ -55,7 +57,7 @@ class MetafieldMigrationService:
                 if batch_number == 1:
                     job_status["total_products"] = "calculating..."
                 
-                print(f"Job {job_id}: Processing batch {batch_number} ({len(product_batch)} products)")
+                logger.info(f"Job {job_id}: Processing batch {batch_number} ({len(product_batch)} products)")
                 
                 for product in product_batch:
                     try:
@@ -66,13 +68,13 @@ class MetafieldMigrationService:
                         product_data = self.shopify.get_complete_product_with_metafields(product_id)
                         
                         if not product_data.get("data", {}).get("product"):
-                            print(f"Job {job_id}: Skipping product {product_id} - not found")
+                            logger.warning(f"Job {job_id}: Skipping product {product_id} - not found")
                             job_status["skipped"] += 1
                             continue
                         
                         metafields_edges = product_data["data"]["product"]["metafields"]["edges"]
                         metafields = [edge["node"] for edge in metafields_edges]
-                        print(f"Job {job_id}: Product '{product_title}' has {metafields}")
+                        logger.info(f"Job {job_id}: Product '{product_title}' has {metafields}")
                         
                         # Find matching rules and create new metafields
                         new_metafields_created = 0
@@ -85,18 +87,18 @@ class MetafieldMigrationService:
                             # Check if any mapping rule matches
                             for rule in mapping_rules:
                                 if self._matches_rule(metafield, rule):
-                                    print(f"Job {job_id}: MATCH FOUND!")
-                                    print(f"  ├─ Product ID: {product_id}")
-                                    print(f"  ├─ Product Name: '{product_title}'")
-                                    print(f"  ├─ Matched Namespace: {namespace}")
-                                    print(f"  ├─ Matched Key: {key}")
-                                    print(f"  ├─ Matched Value: {value}")
-                                    print(f"  ├─ Will Create: {rule['output_namespace']}.{rule['output_key']}")
-                                    print(f"  └─ New Value: {rule['output_value']}")
-                                    
+                                    logger.info(f"Job {job_id}: MATCH FOUND!")
+                                    logger.info(f"  ├─ Product ID: {product_id}")
+                                    logger.info(f"  ├─ Product Name: '{product_title}'")
+                                    logger.info(f"  ├─ Matched Namespace: {namespace}")
+                                    logger.info(f"  ├─ Matched Key: {key}")
+                                    logger.info(f"  ├─ Matched Value: {value}")
+                                    logger.info(f"  ├─ Will Create: {rule['output_namespace']}.{rule['output_key']}")
+                                    logger.info(f"  └─ New Value: {rule['output_value']}")
+
                                     try:
                                         # Create new metafield using YOUR method
-                                        self.shopify.add_metafield_to_product(
+                                        result=self.shopify.add_metafield_to_product(
                                             product_id=product_id,
                                             namespace=rule["output_namespace"],
                                             key=rule["output_key"],
@@ -106,9 +108,11 @@ class MetafieldMigrationService:
                                         
                                         new_metafields_created += 1
                                         
-                                        print(f"Job {job_id}: ✅ SUCCESS - Created {rule['output_namespace']}.{rule['output_key']} for product '{product_title}'")
-                                        print("=" * 80)
-                                        
+                                        logger.info(f"Job {job_id}: ✅ SUCCESS - Created. Result is : {result}")
+
+                                        # logger.info(f"Job {job_id}: ✅ SUCCESS - Created {rule['output_namespace']}.{rule['output_key']} for product '{product_title}'")
+                                        logger.info("=" * 80)
+
                                     except Exception as e:
                                         error_msg = (f"Error creating metafield for product {product_id} "
                                                    f"({rule['output_namespace']}.{rule['output_key']}): {str(e)}")
@@ -135,7 +139,7 @@ class MetafieldMigrationService:
                         job_status["skipped"] += 1
                 
                 # Log progress after each batch
-                print(f"Job {job_id}: Batch {batch_number} complete. "
+                logger.info(f"Job {job_id}: Batch {batch_number} complete. "
                       f"Processed: {job_status['processed']}, "
                       f"Updated: {job_status['updated']}, "
                       f"Skipped: {job_status['skipped']}")
@@ -145,13 +149,13 @@ class MetafieldMigrationService:
             job_status["end_time"] = time.time()
             job_status["duration_seconds"] = job_status["end_time"] - job_status["start_time"]
             job_status["total_products"] = job_status["processed"]
-            
-            print(f"Job {job_id}: Migration completed!")
-            print(f"Job {job_id}: Total products processed: {job_status['processed']}")
-            print(f"Job {job_id}: Products updated: {job_status['updated']}")
-            print(f"Job {job_id}: Products skipped: {job_status['skipped']}")
-            print(f"Job {job_id}: Total metafields created: {job_status.get('total_metafields_created', 0)}")
-            
+
+            logger.info(f"Job {job_id}: Migration completed!")
+            logger.info(f"Job {job_id}: Total products processed: {job_status['processed']}")
+            logger.info(f"Job {job_id}: Products updated: {job_status['updated']}")
+            logger.info(f"Job {job_id}: Products skipped: {job_status['skipped']}")
+            logger.info(f"Job {job_id}: Total metafields created: {job_status.get('total_metafields_created', 0)}")
+
         except Exception as e:
             job_status["status"] = "failed"
             job_status["end_time"] = time.time()

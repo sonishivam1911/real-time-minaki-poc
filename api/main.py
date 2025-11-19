@@ -12,7 +12,10 @@ from controller.whatsapp_slack import controller as  whatsapp_slack
 from controller.shopify.product.metaobject import controller as product_metaobjects
 from controller.shopify.metaobject import controller as metaobjects
 from controller.image_editing import controller as image_editing_controller
+from controller.shopify.metafield_migration import controller as metafield_migration_controller
 from controller.agent import controller as agent_controller
+from controller.agent import test_controller as agent_test_controller
+from controller.nayka import controller as nykaa_controller
 
 app = FastAPI(
     title="PO PDF Processor API", 
@@ -26,6 +29,18 @@ app.include_router(
     tags=["Shopify - Products"]
 )
 
+
+app.include_router(
+    metafield_migration_controller.router,
+    prefix="/metafield-migration",
+    tags=["Shopify - Metafield Migration"]
+)
+
+app.include_router(
+    nykaa_controller.router,
+    prefix="/nykaa",
+    tags=["Nykaa - Product Export"]
+)
 
 app.include_router(
     metafields.router,
@@ -89,6 +104,12 @@ app.include_router(
     agent_controller.router,
     prefix="/api/agent",
     tags=["Minaki Agents"]
+)
+
+app.include_router(
+    agent_test_controller.router,
+    prefix="/api/agent/test",
+    tags=["Minaki Agents - Testing"]
 )
 
 @app.get("/", tags=["System"])
