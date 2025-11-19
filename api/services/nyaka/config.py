@@ -9,38 +9,207 @@ from html import unescape
 
 
 # ============================================================================
-# COMPANY DEFAULTS - UPDATE THESE VALUES
+# COMPANY DEFAULTS - FIXED VALUES
 # ============================================================================
 
 COMPANY_DEFAULTS = {
-    "brand_name": "MINAKII",
-    "manufacturer_name": "YOUR COMPANY LEGAL NAME",  # ⚠️ UPDATE THIS
-    "manufacturer_address": "Complete address with city, state, pincode",  # ⚠️ UPDATE THIS
+    "brand_name": "MINAKI",
+    "manufacturer_name": "MINAKI",
+    "manufacturer_address": "Second Floor, Mckenzie Tower, C-97, Satguru Ram Singh Rd, Mayapuri Industrial Area Phase II, Delhi 110064",
     "country_of_origin": "India",
-    "hsn_code": "7113",
-    "return_policy": "7 Days",
-    "return_available": "Yes",
-    "is_replaceable": "Yes",
-    "ships_in": "3-5 Days",
-    "warranty": "6 Months",
+    "hsn_code": "711790",  # Imitation jewelry - 6 digit code
+    "return_policy": "No Returns",
+    "return_available": "NO",  # Updated - we don't take returns
+    "is_replaceable": "NO",  # Updated - we don't take returns
+    "ships_in": 5,  # Integer value - maximum days for shipping
+    "warranty": "No Warranty",  # Changed from "0 Months"
     "care_instructions": "Keep away from moisture, perfumes, and chemicals. Store in a dry place. Clean with soft cloth."
 }
 
 JEWELRY_DEFAULTS = {
-    "segment": "Fashion Jewellery", 
-    "season": "All Seasons",
+    "segment": "Western",  # Changed from "Fashion Jewellery"
+    "season": "Autumn/Winter 2025",  # Will be dynamic
     "brand_size": "One Size",
-    "multipack_set": "1",
-    "net_qty": "1",
-    "occasion": "Casual",
-    "age_group": "Adults",
+    "multipack_set": "Single",  # Changed from "1"
+    "net_qty": "1N",  # Changed from "1"
+    "occasion": "Party",  # Changed to single valid occasion
+    "age_group": "",  # Empty for adults
     "styles_of_jewellery": "Contemporary",
     "disclaimer": "",
     "responsibility_criteria": "",
     "age": "",
-    "gender": "Women"  # Default gender
+    "gender": "Women"
 }
 
+
+# ============================================================================
+# NYKAA VALUE MAPPINGS - Fix Validation Issues
+# ============================================================================
+
+# Map common invalid colors to valid Nykaa colors
+# Map invalid styles to valid Nykaa styles
+STYLES_MAPPING = {
+    # Map to exact matches from Nykaa dropdown
+    "traditional": "Temple",  # Traditional jewelry should go to Temple, not Traditional Rakhi
+    "ethnic": "Temple", 
+    "modern": "Contemporary",
+    "classic": "Contemporary",
+    "kundan": "Kundan",  # Kundan should map directly to Kundan
+    "temple": "Temple",  # Temple maps to Temple
+    "meenakari": "Meenakari",  # Meenakari maps to Meenakari
+    "minakari": "Meenakari",  # Alternative spelling
+    "oxidised": "Oxidised",
+    "oxidized": "Oxidised",  # US spelling
+    "pearl": "Pearl",
+    "pearls": "Pearl",
+    "stones": "Stones",
+    "stone": "Stones",
+    "coloured stone": "Coloured Stone",
+    "colored stone": "Coloured Stone",  # US spelling
+    "white stones": "White Stones",
+    "dramatic": "Dramatic",
+    "minimal": "Minimal",
+    "minimalist": "Minimal",
+    "essential": "Essential",
+    "statement": "Statement",
+    "fusion": "Fusion",
+    "resort": "Resort",
+    "sterling silver": "Sterling Silver",
+    "silver": "Silver Jewellery",
+    "tassel": "Tassel",
+    "delicate": "Delicates",
+    "delicates": "Delicates",
+    "contemporary": "Contemporary",
+    "evil eye": "Evil Eye",
+    "kaasu malai": "Kaasu Malai",
+    "rudraksha": "Rudraksha Rakhi",  # This one is specifically for Rakhi
+    "rakhi": "Traditional Rakhi"  # Only actual Rakhi products should use this
+}
+
+def normalize_sku(sku: str) -> str:
+    """
+    Normalize SKU by removing common variant suffixes
+    
+    Args:
+        sku: Original SKU
+        
+    Returns:
+        Normalized SKU without variant suffixes
+    """
+    if not sku:
+        return ""
+    
+    normalized = sku.upper().strip()
+    
+    # Remove common variant suffixes
+    suffixes_to_remove = [
+        "/MC",  # Multi-color
+        "/BK",  # Black
+        "/WH",  # White  
+        "/GD",  # Gold
+        "/SL",  # Silver
+        "/RG",  # Rose Gold
+        "/Gy",  # Grey/Gray
+        "GR",   # Green (without slash)
+        "Y",    # Yellow (single letter)
+    ]
+    
+    for suffix in suffixes_to_remove:
+        if normalized.endswith(suffix):
+            normalized = normalized[:-len(suffix)]
+            break
+    
+    return normalized
+
+def normalize_dropdown_value(value: str, mapping_dict: Dict[str, str]) -> str:
+    """
+    Normalize a dropdown value using the provided mapping
+    
+    Args:
+        value: Original value
+        mapping_dict: Mapping dictionary
+        
+    Returns:
+        Normalized value or default fallback if no mapping found
+    """
+    if not value:
+        return value
+        
+    # Clean and lowercase for comparison
+    cleaned = value.strip().lower()
+    
+    # Check direct mapping
+    if cleaned in mapping_dict:
+        return mapping_dict[cleaned]
+    
+    # Check case-insensitive mapping
+    for key, value in mapping_dict.items():
+        if key.lower() == cleaned:
+            return value
+    
+    # Check partial matches for occasions (comma-separated)
+    if mapping_dict == OCCASION_MAPPING:
+        parts = [part.strip() for part in value.split(',')]
+        mapped_parts = []
+        
+        for part in parts:
+            part_lower = part.strip().lower()
+            mapped = None
+            
+            # First try exact lowercase match
+            if part_lower in mapping_dict:
+                mapped = mapping_dict[part_lower]
+            else:
+                # Try case-insensitive match
+                for key, val in mapping_dict.items():
+                    if key.lower() == part_lower:
+                        mapped = val
+                        break
+            
+            if mapped:  # If mapping found
+                if mapped not in mapped_parts:  # Avoid duplicates
+                    mapped_parts.append(mapped)
+            # If no mapping found, try to find a sensible default
+            elif "wedding" in part_lower or "bridal" in part_lower or "marriage" in part_lower:
+                if "Wedding" not in mapped_parts:
+                    mapped_parts.append("Wedding")
+            elif "party" in part_lower or "cocktail" in part_lower or "celebration" in part_lower:
+                if "Party" not in mapped_parts:
+                    mapped_parts.append("Party")
+            elif "festive" in part_lower or "festival" in part_lower or "mehendi" in part_lower or "haldi" in part_lower:
+                if "Festive Wear" not in mapped_parts:
+                    mapped_parts.append("Festive Wear")
+        
+        # Return mapped values or fallback to "Party"
+        return ', '.join(mapped_parts) if mapped_parts else "Party"
+    
+    # For color mapping, provide fallbacks
+    if mapping_dict == COLOR_MAPPING:
+        # Try to find color keywords in the value
+        value_lower = value.lower()
+        if "gold" in value_lower or "golden" in value_lower:
+            return "Gold"
+        elif "silver" in value_lower:
+            return "Silver"
+        elif "rose" in value_lower:
+            return "Rose Gold"
+        elif "green" in value_lower or "emerald" in value_lower:
+            return "Green"
+        elif "blue" in value_lower:
+            return "Blue"
+        elif "red" in value_lower:
+            return "Red"
+        elif "pink" in value_lower:
+            return "Pink"
+        elif "black" in value_lower:
+            return "Black"
+        elif "white" in value_lower:
+            return "White"
+        else:
+            return "Multi-Color"  # Safe default for any unrecognized color
+    
+    # For other mappings, return the original value (should be rare)
+    return value
 
 # ============================================================================
 # ALL 48 NYKAA COLUMNS
@@ -67,93 +236,168 @@ MANDATORY_FIELDS = ALL_NYKAA_COLUMNS[:29]
 
 
 # ============================================================================
-# ZAKYA MAPPING
-# ============================================================================
-
-ZAKYA_FIELD_MAPPING = {
-    "cf_gender": "Gender",
-    "cf_product_description": "Description",
-    "cf_components": "Type of Jewellery",
-    "cf_work": "Styles of Jewellery",
-    "cf_collection": "Collections Function",
-    "cf_serial_number": ["Style Code", "Design Code"],
-    "cf_finish": ["Material", "Plating", "Color"],
-    "sku": "Vendor SKU Code",
-    "name": "Product Name",
-    "description": "Description",
-    "rate": "Price",
-    "sales_rate": "Price",
-    "hsn_or_sac": "HSN Codes",
-    "weight": "Product Weight"
-}
-
-
-# ============================================================================
-# SHOPIFY MAPPING
-# ============================================================================
-
-METAFIELD_MAPPING = {
-    "custom.base_metal": "Material",
-    "custom.material": "Material",
-    "custom.finish": "Plating",
-    "custom.plating": "Plating",
-    "custom.style": "Style Code",
-    "custom.components": "Pack Contains",
-    "custom.color": "Color",
-    "custom.occasion": "Occasion",
-    "custom.care_instructions": "Care Instruction",
-    "custom.weight": "Product Weight",
-    "custom.dimensions": "Dimensions",
-    "custom.diameter": "Diameter",
-    "shopify.target-gender": "Gender",
-    "custom.gender": "Gender",
-    "custom.collection": "Collections Function",
-    "custom.design_code": "Design Code"
-}
-
-
-# ============================================================================
 # VALUE MAPPINGS
 # ============================================================================
 
 GENDER_MAPPING = {
     "Women": "Women", "Men": "Men", "Unisex": "Unisex",
-    "Female": "Women", "Male": "Men", "Girls": "Women",
-    "Boys": "Men", "women": "Women", "men": "Men"
-}
-
-TYPE_MAPPING = {
-    "Ring": "Ring", "Rings": "Ring",
-    "Necklace": "Necklace", "Necklaces": "Necklace",
-    "Earrings": "Earrings", "Earring": "Earrings",
-    "Bracelet": "Bracelet", "Bracelets": "Bracelet",
-    "Bangle": "Bangle", "Bangles": "Bangle",
-    "Pendant": "Pendant", "Pendants": "Pendant",
-    "Anklet": "Anklet", "Nose Pin": "Nose Pin",
-    "Mangalsutra": "Mangalsutra", "Chain": "Chain", "Kada": "Kada"
-}
-
-STYLE_MAPPING = {
-    "Colored Stones": "Contemporary",
-    "Kundan": "Traditional",
-    "Meenakari": "Traditional",
-    "Pearl": "Contemporary",
-    "Diamond": "Contemporary",
-    "Plain": "Minimalist",
-    "Oxidized": "Vintage",
-    "Filigree": "Traditional",
-    "Polki": "Traditional",
-    "Modern": "Contemporary",
-    "Ethnic": "Traditional"
+    "Female": "Women", "Male": "Men", "Girls": "Girls",
+    "Boys": "Boys", "women": "Women", "men": "Men",
+    "Moms": "Moms"
 }
 
 OCCASION_MAPPING = {
-    "Daily": "Casual", "Casual": "Casual",
-    "Party": "Party", "Wedding": "Wedding",
-    "Festive": "Festive", "Office": "Casual",
-    "Bridal": "Wedding", "Formal": "Party"
+    "Daily": "Casual", 
+    "Casual": "Casual",
+    "Party": "Party", 
+    "Wedding": "Wedding",
+    "Festive": "Festive Wear",
+    "Office": "Work",
+    "Formal": "Formal",
+    "Bridal": "Wedding",  # Map Bridal → Wedding
+    "Anniversary": "Special Occasion",
+    "Night Out": "Night Out",
+    "Day Wear": "Day Wear",
+    "Semi Formal": "Semi Formal",
+    "Evening": "Evening Wear",
+    "Cocktail": "Cocktail Wear",  # Already exists!
+    "Date Night": "Date Night",
+    "Festive Wear": "Festive Wear",
+    "Wedding Wear": "Wedding Wear",
+    "Sporty": "Sports",
+    "Any": "Any Occasion",
+    "Everyday": "Everyday Essentials",
+    "Fusion": "Fusion",
+    "Resort": "Resort/Vacation",
+    "Vacation": "Resort/Vacation",
+    "Lounge": "Loungewear",
+    
+    # ADD THESE CUSTOM WEDDING OCCASIONS - FIXED TO VALID VALUES:
+    "Wedding Tribe": "Wedding",
+    "Sangeet": "Wedding Wear", 
+    "Mehendi": "Wedding Wear",
+    "Haldi": "Wedding Wear", 
+    "Mehendi & Haldi": "Wedding Wear",
+    "Mehandi & Haldi": "Wedding Wear",  # Alternative spelling
+    "Destination Wedding": "Wedding",
+    "Celebration": "Special Occasion",  # This IS in valid list
 }
 
+# Color normalization mapping
+COLOR_MAPPING = {
+    # Common color variations → Nykaa colors
+    "Golden": "Gold",
+    "Emerald": "Green",
+    "Emerald Green": "Green",
+    "Sky Blue": "Blue",
+    "Light Blue": "Blue",
+    "Dark Blue": "Navy Blue",
+    "Light Pink": "Pink",
+    "Dark Pink": "Magenta",
+    "Light Green": "Green",
+    "Dark Green": "Green",
+    "Lime Green": "Green",
+    "Neon": "Multi-Color",
+    "Multicolor": "Multi-Color",
+    "Multi Color": "Multi-Color",
+    "Rose": "Rose Gold",
+    "Champagne": "Beige",
+    "Antique Gold": "Gold",
+}
+
+def normalize_color(color: str) -> str:
+    """Normalize color to valid Nykaa value"""
+    if not color:
+        return "Multi-Color"
+    
+    # Direct match
+    if color in COLOR_MAPPING:
+        return COLOR_MAPPING[color]
+    
+    # Case-insensitive match
+    for key, value in COLOR_MAPPING.items():
+        if key.lower() == color.lower():
+            return value
+    
+    # Return as-is if already valid
+    return color
+
+
+def clean_pack_contains(text: str) -> str:
+    """Clean pack contains field for Nykaa"""
+    if not text:
+        return text
+    
+    # Remove HTML entities
+    text = text.replace('&Amp;', 'and')
+    text = text.replace('&amp;', 'and')
+    text = text.replace('&AMP;', 'and')
+    text = text.replace('&', 'and')  # Any remaining ampersands
+    
+    # Remove other special characters that Nykaa doesn't allow
+    text = text.replace('---', '')
+    text = text.replace('#', '')
+    text = text.replace('%', '')
+    text = text.replace('*', '')
+    
+    # Clean and trim whitespace
+    text = ' '.join(text.split())  # Remove extra spaces
+    
+    return text
+
+
+def validate_hsn(hsn: str) -> str:
+    """Ensure HSN is 6 or 8 digits"""
+    if not hsn:
+        return COMPANY_DEFAULTS["hsn_code"]
+        
+    hsn = str(hsn).strip()
+    
+    # Remove any non-numeric characters
+    hsn = ''.join(filter(str.isdigit, hsn))
+    
+    if len(hsn) not in [6, 8]:
+        # Default to jewelry HSN if invalid
+        return COMPANY_DEFAULTS["hsn_code"]
+    
+    return hsn
+
+def normalize_occasion(occasion: str) -> str:
+    """
+    Normalize occasion to valid Nykaa value(s)
+    Handles comma-separated occasions
+    """
+    if not occasion:
+        return JEWELRY_DEFAULTS["occasion"]
+    
+    # Split by comma if multiple occasions
+    occasions = [o.strip() for o in occasion.split(",")]
+    normalized = []
+    
+    for occ in occasions:
+        if occ in OCCASION_MAPPING:
+            normalized_occ = OCCASION_MAPPING[occ]
+        else:
+            # Try case-insensitive match
+            found = False
+            for key, value in OCCASION_MAPPING.items():
+                if key.lower() == occ.lower():
+                    normalized_occ = value
+                    found = True
+                    break
+            
+            if not found:
+                # Skip invalid occasions
+                continue
+        
+        # Avoid duplicates
+        if normalized_occ not in normalized:
+            normalized.append(normalized_occ)
+    
+    if not normalized:
+        return JEWELRY_DEFAULTS["occasion"]
+    
+    return ", ".join(normalized)
 
 # ============================================================================
 # TRANSFORMATION FUNCTIONS
@@ -191,115 +435,11 @@ def remove_brand_from_title(title: str, brand_name: str) -> str:
     return cleaned.strip()
 
 
-def extract_material_and_plating(finish_text: str) -> Tuple[str, str]:
-    """Extract material and plating from finish text"""
-    if not finish_text:
-        return ("", "")
-    
-    finish_lower = finish_text.lower()
-    material = ""
-    plating = ""
-    
-    # Extract plating
-    if "plated" in finish_lower:
-        if "white gold plated" in finish_lower:
-            plating = "White Gold Plated"
-        elif "rose gold plated" in finish_lower:
-            plating = "Rose Gold Plated"
-        elif "gold plated" in finish_lower:
-            plating = "Gold Plated"
-        elif "silver plated" in finish_lower:
-            plating = "Silver Plated"
-        elif "rhodium plated" in finish_lower:
-            plating = "Rhodium Plated"
-    
-    # Extract material
-    if any(x in finish_lower for x in ["18k", "18 k"]):
-        material = "18K Gold"
-    elif any(x in finish_lower for x in ["22k", "22 k"]):
-        material = "22K Gold"
-    elif any(x in finish_lower for x in ["14k", "14 k"]):
-        material = "14K Gold"
-    elif "sterling silver" in finish_lower:
-        material = "Sterling Silver"
-    elif "silver" in finish_lower and "plated" not in finish_lower:
-        material = "Silver"
-    elif "brass" in finish_lower:
-        material = "Brass"
-    elif "copper" in finish_lower:
-        material = "Copper"
-    elif "alloy" in finish_lower:
-        material = "Alloy"
-    
-    if not material and not plating:
-        material = finish_text
-    
-    return (material, plating)
-
-
-def extract_color_from_finish(finish_text: str) -> str:
-    """Extract color from finish text"""
-    if not finish_text:
-        return ""
-    
-    finish_lower = finish_text.lower()
-    
-    if "white gold" in finish_lower:
-        return "White Gold"
-    elif "rose gold" in finish_lower:
-        return "Rose Gold"
-    elif "yellow gold" in finish_lower or "gold" in finish_lower:
-        return "Gold"
-    elif "silver" in finish_lower:
-        return "Silver"
-    elif "rhodium" in finish_lower:
-        return "Rhodium"
-    
-    return ""
-
-
-def generate_pack_contains(jewelry_type: str, has_box: bool = True, has_certificate: bool = False) -> str:
-    """Generate pack contains description"""
-    if not jewelry_type:
-        return "1 Piece"
-    
-    jewelry_type = jewelry_type.strip().title()
-    
-    if jewelry_type.lower() == "earrings":
-        base = "1 Pair of Earrings"
-    else:
-        base = f"1 {jewelry_type}"
-    
-    if has_box:
-        base += " with Velvet Box"
-    
-    if has_certificate:
-        base += " and Certificate of Authenticity"
-    
-    return base
-
-
 def map_gender(gender_value: str) -> str:
     """Map gender to Nykaa values"""
     if not gender_value:
         return "Women"
-    return GENDER_MAPPING.get(gender_value.strip(), "Unisex")
-
-
-def map_jewelry_type(component: str) -> str:
-    """Map component to jewelry type"""
-    if not component:
-        return ""
-    component_clean = component.strip().title()
-    return TYPE_MAPPING.get(component_clean, component_clean)
-
-
-def map_style(work_type: str) -> str:
-    """Map work type to style"""
-    if not work_type:
-        return JEWELRY_DEFAULTS["styles_of_jewellery"]
-    work_clean = work_type.strip().title()
-    return STYLE_MAPPING.get(work_clean, "Contemporary")
+    return GENDER_MAPPING.get(gender_value.strip(), "Women")
 
 
 def map_occasion(occasion_value: str) -> str:
@@ -307,11 +447,11 @@ def map_occasion(occasion_value: str) -> str:
     if not occasion_value:
         return JEWELRY_DEFAULTS["occasion"]
     occasion_clean = occasion_value.strip().title()
-    return OCCASION_MAPPING.get(occasion_clean, "Casual")
+    return OCCASION_MAPPING.get(occasion_clean, "Party")
 
 
 def get_image_urls(images_list: List, max_images: int = 10) -> Dict[str, str]:
-    """Extract image URLs for Nykaa columns"""
+    """Extract image URLs for Nykaa columns - requires at least 2 different images"""
     result = {
         "Front Image": "",
         "Back Image": "",
@@ -320,22 +460,26 @@ def get_image_urls(images_list: List, max_images: int = 10) -> Dict[str, str]:
     for i in range(1, 9):
         result[f"Additional Image {i}"] = ""
     
-    if not images_list or len(images_list) == 0:
-        return result
+    if not images_list or len(images_list) < 2:
+        return result  # Return empty if less than 2 images
     
     def get_url(img):
         if isinstance(img, dict):
             return img.get("src", "") or img.get("url", "")
         return str(img)
     
-    if len(images_list) > 0:
+    # Only set images if we have at least 2 different images
+    if len(images_list) >= 2:
         result["Front Image"] = get_url(images_list[0])
-    
-    if len(images_list) > 1:
         result["Back Image"] = get_url(images_list[1])
-    else:
-        result["Back Image"] = result["Front Image"]
+        
+        # Only proceed if front and back are actually different
+        if result["Front Image"] == result["Back Image"]:
+            result["Front Image"] = ""
+            result["Back Image"] = ""
+            return result
     
+    # Add additional images starting from the 3rd image
     for i, img in enumerate(images_list[2:10], 1):
         result[f"Additional Image {i}"] = get_url(img)
     
@@ -348,7 +492,7 @@ def validate_nykaa_row(row: Dict[str, Any]) -> Tuple[bool, List[str]]:
     
     mandatory = [
         "Vendor SKU Code", "Product Name", "Description", "Price",
-        "Brand Name", "Manufacturer Name", "Manufacturer Address", "Front Image"
+        "Brand Name", "Manufacturer Name", "Manufacturer Address", "Front Image", "Back Image"
     ]
     
     for field in mandatory:
@@ -367,17 +511,24 @@ def validate_nykaa_row(row: Dict[str, Any]) -> Tuple[bool, List[str]]:
     except (ValueError, TypeError):
         errors.append("Invalid price format")
     
+    # Validate both front and back images
     front_image = str(row.get("Front Image", ""))
+    back_image = str(row.get("Back Image", ""))
+    
     if front_image and not front_image.startswith(("http://", "https://")):
-        errors.append("Invalid image URL")
+        errors.append("Invalid Front Image URL")
+    
+    if back_image and not back_image.startswith(("http://", "https://")):
+        errors.append("Invalid Back Image URL")
+    
+    # Ensure both front and back images are present and different
+    if front_image and back_image:
+        if front_image == back_image:
+            errors.append("Front and Back images must be different - product needs unique front and back images")
     
     description = str(row.get("Description", ""))
     if len(description) > 1000:
         errors.append(f"Description too long ({len(description)}/1000)")
-    
-    manufacturer_address = str(row.get("Manufacturer Address", ""))
-    if "Complete address" in manufacturer_address:
-        errors.append("Update manufacturer address")
     
     is_valid = len(errors) == 0
     return is_valid, errors
@@ -398,50 +549,3 @@ MAX_LENGTHS = {
     "Description": 1000,
     "Style Code": 50
 }
-
-
-def test_transformations():
-    """Test all transformation functions"""
-    print("=" * 80)
-    print("NYKAA CONFIG - TRANSFORMATION TESTS")
-    print("=" * 80)
-    
-    # Test 1
-    print("\n1. Description Cleaning:")
-    html = "<p>Beautiful <strong>ring</strong> • Perfect for parties</p>"
-    clean = clean_description(html)
-    print(f"   Input:  {html}")
-    print(f"   Output: {clean}")
-    
-    # Test 2
-    print("\n2. Material & Plating:")
-    finish = "18K White Gold Plated"
-    material, plating = extract_material_and_plating(finish)
-    print(f"   Input:    {finish}")
-    print(f"   Material: {material}")
-    print(f"   Plating:  {plating}")
-    
-    # Test 3
-    print("\n3. Pack Contains:")
-    pack = generate_pack_contains("Ring", has_box=True)
-    print(f"   Output: {pack}")
-    
-    # Test 4
-    print("\n4. Brand Removal:")
-    title = "MINAKII Elegant Ring"
-    cleaned = remove_brand_from_title(title, "MINAKII")
-    print(f"   Input:  {title}")
-    print(f"   Output: {cleaned}")
-    
-    # Test 5
-    print("\n5. Gender Mapping:")
-    for gender in ["Women", "Female", "girls"]:
-        print(f"   {gender} → {map_gender(gender)}")
-    
-    print("\n" + "=" * 80)
-    print("✅ All tests passed!")
-    print("=" * 80)
-
-
-if __name__ == "__main__":
-    test_transformations()

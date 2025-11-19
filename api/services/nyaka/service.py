@@ -189,6 +189,41 @@ class NykaaExportService:
             print(f"Error fetching product details for {item_id}: {e}")
             return None
     
+    def normalize_sku(self, sku: str) -> str:
+        """
+        Normalize SKU by removing common variant suffixes
+        
+        Args:
+            sku: Original SKU
+            
+        Returns:
+            Normalized SKU without variant suffixes
+        """
+        if not sku:
+            return ""
+        
+        normalized = sku.upper().strip()
+        
+        # Remove common variant suffixes
+        suffixes_to_remove = [
+            "/MC",  # Multi-color
+            "/BK",  # Black
+            "/WH",  # White  
+            "/GD",  # Gold
+            "/SL",  # Silver
+            "/RG",  # Rose Gold
+            "/Gy",  # Grey/Gray
+            "GR",   # Green (without slash)
+            "Y",    # Yellow (single letter)
+        ]
+        
+        for suffix in suffixes_to_remove:
+            if normalized.endswith(suffix):
+                normalized = normalized[:-len(suffix)]
+                break
+        
+        return normalized
+
     async def fetch_zakya_products_by_skus(self, skus: List[str]) -> List[Dict[str, Any]]:
         """
         Fetch products from Zakya by SKU list (STEP 1 - Master Data)
@@ -304,7 +339,36 @@ class NykaaExportService:
             result = self.shopify.execute_query(query, variables)
             edges = result.get("data", {}).get("products", {}).get("edges", [])
             products = [edge["node"] for edge in edges]
-            return products
+            
+            # CRITICAL FIX: Deduplicate by SKU at fetch level
+            # Only keep first variant that matches requested SKUs
+            sku_set = set(skus)  # Convert to set for faster lookup
+            unique_products = []
+            seen_skus = set()
+            
+            for product in products:
+                variants = product.get("variants", {}).get("edges", [])
+                
+                # Find first variant that matches our requested SKUs
+                matching_variant = None
+                for variant_edge in variants:
+                    variant = variant_edge["node"]
+                    variant_sku = variant.get("sku", "").strip()
+                    
+                    if variant_sku in sku_set and variant_sku not in seen_skus:
+                        matching_variant = variant
+                        seen_skus.add(variant_sku)
+                        break
+                
+                # Only include product if it has a matching variant we haven't seen
+                if matching_variant:
+                    # Modify product to only include the matching variant
+                    product["variants"]["edges"] = [{"node": matching_variant}]
+                    unique_products.append(product)
+            
+            print(f"📦 Shopify fetch: {len(products)} products → {len(unique_products)} unique SKUs")
+            return unique_products
+            
         except Exception as e:
             print(f"Error fetching Shopify products: {e}")
             return []
@@ -390,8 +454,7 @@ class NykaaExportService:
         Returns:
             List of Shopify products with Zakya data attached in _zakya_data field
         """
-        print(f"🚀 Fetching products for {len(skus)} SKUs from both Zakya and Shopify...")
-        
+    
         # STEP 1: Fetch from Zakya (master inventory)
         print("📦 Step 1: Fetching from Zakya...")
         zakya_products = await self.fetch_zakya_products_by_skus(skus)
@@ -412,23 +475,32 @@ class NykaaExportService:
         # STEP 3: Merge Shopify products with Zakya data
         print("🔄 Step 3: Merging Shopify + Zakya data...")
         result_products = []
+        processed_skus = set()  # Track what we've already processed
         
         for shopify_product in shopify_products:
             # Get SKU from first variant
             variants = shopify_product.get("variants", {}).get("edges", [])
             if variants:
                 variant = variants[0]["node"]
-                sku = variant.get("sku", "").upper().strip()
+                original_sku = variant.get("sku", "").strip()
+                normalized_sku = self.normalize_sku(original_sku).upper()
                 
-                # Find matching Zakya product
-                zakya_product = zakya_by_sku.get(sku)
+                # Skip if we've already processed this normalized SKU
+                if normalized_sku in processed_skus:
+                    print(f"🚫 Skipping variant SKU {original_sku} (normalized to {normalized_sku}) - already processed")
+                    continue
+                
+                processed_skus.add(normalized_sku)
+                
+                # Find matching Zakya product using normalized SKU
+                zakya_product = zakya_by_sku.get(normalized_sku)
                 
                 if zakya_product:
-                    print(f"✅ Merged SKU {sku}: Shopify + Zakya data")
+                    print(f"✅ Merged SKU {original_sku} (normalized: {normalized_sku}): Shopify + Zakya data")
                     # Attach Zakya data to Shopify product
                     shopify_product["_zakya_data"] = zakya_product
                 else:
-                    print(f"⚠️ SKU {sku}: Shopify only (no Zakya data)")
+                    print(f"⚠️ SKU {original_sku} (normalized: {normalized_sku}): Shopify only (no Zakya data)")
                     shopify_product["_zakya_data"] = None
                 
                 result_products.append(shopify_product)
@@ -442,6 +514,7 @@ class NykaaExportService:
                 sku = variant.get("sku", "").upper().strip()
                 shopify_skus.add(sku)
         
+        # Only add Zakya-only products (avoid duplicates with Shopify products)
         for sku in skus:
             sku_upper = sku.upper().strip()
             if sku_upper in zakya_by_sku and sku_upper not in shopify_skus:
@@ -476,5 +549,26 @@ class NykaaExportService:
                 }
                 result_products.append(fake_shopify)
         
-        print(f"🎯 Final result: {len(result_products)} products ready for mapping")
-        return result_products
+        # STEP 5: Final deduplication by SKU (prioritize Shopify over Zakya-only products)
+        print("🔍 Final deduplication check...")
+        final_products = []
+        seen_skus = set()
+        
+        for product in result_products:
+            variants = product.get("variants", {}).get("edges", [])
+            if variants:
+                variant = variants[0]["node"]
+                original_sku = variant.get("sku", "").strip()
+                normalized_sku = self.normalize_sku(original_sku).upper()
+                
+                if normalized_sku and normalized_sku not in seen_skus:
+                    seen_skus.add(normalized_sku)
+                    final_products.append(product)
+                    print(f"✅ Added SKU {original_sku} (normalized: {normalized_sku})")
+                elif normalized_sku:
+                    print(f"⚠️ Skipped duplicate SKU {original_sku} (normalized: {normalized_sku})")
+                else:
+                    print(f"⚠️ Skipped product with missing/invalid SKU: {original_sku}")
+        
+        print(f"🎯 Final result: {len(final_products)} unique products ready for mapping")
+        return final_products

@@ -1,27 +1,41 @@
 """
-Updated Nykaa Mapper Service with Metaobject Support
-Handles both direct metafields and metaobject references
+Updated Nykaa Mapper with Zakya Priority
 """
 
 from typing import Dict, Any, List, Optional
 import pandas as pd
 import json
+
 from .config import (
-    COMPANY_DEFAULTS,
-    JEWELRY_DEFAULTS,
-    ALL_NYKAA_COLUMNS,
-    clean_description,
-    remove_brand_from_title,
-    generate_pack_contains,
-    validate_nykaa_row
+    ALL_NYKAA_COLUMNS, COMPANY_DEFAULTS, JEWELRY_DEFAULTS,
+    validate_nykaa_row,
+    normalize_dropdown_value, clean_description, remove_brand_from_title,
+    normalize_sku, COLOR_MAPPING,
+    GENDER_MAPPING, 
+    OCCASION_MAPPING, 
+    STYLES_MAPPING,
+    clean_pack_contains,
+    validate_hsn
+)# Import all the new mappers
+from .zakya_extractor import extract_zakya_metadata
+from .plating_mapper import get_plating
+from .style_mapper import get_style, get_style_from_tags, detect_style_from_text
+from .segment_mapper import get_segment, get_segment_from_tags
+from .pack_mapper import (
+    get_multipack_set, 
+    get_pack_contains, 
+    parse_components_from_description
 )
+from .season_mapper import get_current_season
+from .type_mapper import map_jewelry_type, get_type_from_components
+
 from services.shopify.metaobject import MetaobjectService
 
 
 class NykaaProductMapper:
     """
     Maps product data from Shopify/Zakya to Nykaa format
-    Handles metaobject references
+    NOW WITH ZAKYA-FIRST PRIORITY
     """
     
     def __init__(self, shopify_connector=None):
@@ -33,8 +47,7 @@ class NykaaProductMapper:
         """
         self.brand_name = COMPANY_DEFAULTS["brand_name"]
         self.shopify = shopify_connector
-        self.metaobject_cache = {}  # Cache resolved metaobjects
-        # Initialize metaobject service using the same connector
+        self.metaobject_cache = {}
         self.metaobject_service = MetaobjectService(shopify_connector) if shopify_connector else None
     
     def get_metafield_value(self, metafields: List[Dict], namespace: str, key: str) -> Optional[str]:
@@ -58,8 +71,6 @@ class NykaaProductMapper:
                 value = metafield.get("value")
                 field_type = metafield.get("type", "")
                 
-                print(f"🔍 Found metafield {namespace}.{key}: value='{value}', type='{field_type}'")
-                
                 # Handle metaobject references
                 if "metaobject_reference" in field_type:
                     return self._resolve_metaobject_reference(value, field_type)
@@ -69,11 +80,9 @@ class NykaaProductMapper:
                     try:
                         parsed = json.loads(value) if isinstance(value, str) else value
                         if isinstance(parsed, list):
-                            # For list.metaobject_reference, resolve each reference
                             if "metaobject_reference" in field_type:
                                 resolved = [self._resolve_metaobject_reference(item, field_type) for item in parsed]
                                 return ", ".join([r for r in resolved if r])
-                            # For other lists, join with comma
                             return ", ".join(str(item) for item in parsed)
                     except:
                         return value
@@ -87,7 +96,7 @@ class NykaaProductMapper:
         Resolve metaobject reference to actual value
         
         Args:
-            value: Metaobject GID (e.g., "gid://shopify/Metaobject/129887371487")
+            value: Metaobject GID
             field_type: Type of the field
         
         Returns:
@@ -96,114 +105,69 @@ class NykaaProductMapper:
         if not value:
             return None
         
-        print(f"🔍 Raw metaobject value: '{value}' (type: {type(value)})")
-        
-        # Clean up the value - handle various formats
+        # Clean up the value
         cleaned_value = str(value).strip()
         
-        # Handle JSON array format: ["gid://shopify/Metaobject/123"]
+        # Handle JSON array format
         if cleaned_value.startswith('["') and cleaned_value.endswith('"]'):
             try:
-                import json
                 parsed_array = json.loads(cleaned_value)
                 if isinstance(parsed_array, list) and len(parsed_array) > 0:
-                    cleaned_value = parsed_array[0]  # Take first item from array
-                    print(f"🔧 Extracted from JSON array: '{cleaned_value}'")
+                    cleaned_value = parsed_array[0]
             except:
-                # If JSON parsing fails, try manual extraction
-                cleaned_value = cleaned_value[2:-2]  # Remove [" and "]
-                print(f"🔧 Manual extraction from array: '{cleaned_value}'")
+                cleaned_value = cleaned_value[2:-2]
         
-        # Handle quoted strings with trailing brackets: "value"]
-        elif cleaned_value.startswith('"') and cleaned_value.endswith('"]'):
-            cleaned_value = cleaned_value[1:-2]  # Remove opening quote and closing quote+bracket
-            print(f"🔧 Removed quotes and bracket: '{cleaned_value}'")
-        
-        # Handle regular quoted strings: "value"
+        # Handle quoted strings
         elif cleaned_value.startswith('"') and cleaned_value.endswith('"'):
-            cleaned_value = cleaned_value[1:-1]  # Remove quotes
-            print(f"🔧 Removed quotes: '{cleaned_value}'")
+            cleaned_value = cleaned_value[1:-1]
         
-        print(f"🧹 Final cleaned metaobject value: '{value}' -> '{cleaned_value}'")
-        
-        # Validate that we have a proper GID format
+        # Validate GID format
         if not cleaned_value.startswith('gid://shopify/'):
-            print(f"⚠️ Invalid GID format: '{cleaned_value}'")
             return None
         
-        # Check cache first
+        # Check cache
         if cleaned_value in self.metaobject_cache:
-            cached_result = self.metaobject_cache[cleaned_value]
-            print(f"📋 Using cached metaobject result: {cached_result}")
-            return cached_result
+            return self.metaobject_cache[cleaned_value]
         
-        # If we have a Shopify connector, fetch the metaobject
+        # Fetch from Shopify
         if self.metaobject_service:
             try:
                 resolved_value = self._fetch_metaobject_value(cleaned_value)
                 if resolved_value:
-                    print(f"✅ Resolved metaobject {cleaned_value} -> {resolved_value}")
                     self.metaobject_cache[cleaned_value] = resolved_value
                     return resolved_value
-                else:
-                    print(f"❌ Failed to resolve metaobject: {cleaned_value}")
             except Exception as e:
                 print(f"⚠️ Error resolving metaobject {cleaned_value}: {e}")
-        else:
-            print(f"⚠️ No metaobject service available for resolving: {cleaned_value}")
         
-        # Fallback: extract ID from GID for logging
-        # Format: gid://shopify/Metaobject/ID
-        try:
-            metaobject_id = cleaned_value.split("/")[-1]
-            fallback_result = f"metaobject_{metaobject_id}"
-            print(f"🔄 Using fallback result: {fallback_result}")
-            return fallback_result
-        except:
-            print(f"💥 Complete failure to parse metaobject: {value}")
-            return None
+        return None
     
     def _fetch_metaobject_value(self, gid: str) -> Optional[str]:
         """
-        Fetch metaobject value from Shopify using existing metaobject service
+        Fetch metaobject value from Shopify
         
         Args:
             gid: Metaobject GID
         
         Returns:
-            Display name or handle of the metaobject
+            Display name or handle
         """
-        print(f"📡 Fetching metaobject from Shopify using MetaobjectService: {gid}")
-        
         try:
-            # Use the existing metaobject service
             result = self.metaobject_service.get_metaobject_by_id(gid)
-            print(f"📊 Metaobject service response: {result}")
-            
             metaobject = result.get("data", {}).get("metaobject")
             
             if metaobject:
-                # Try to find display name from fields first
                 fields = metaobject.get("fields", [])
-                display_name = None
                 
-                # Look for common display name fields
+                # Look for display name
                 for field in fields:
                     field_key = field.get("key", "").lower()
                     if field_key in ["display_name", "name", "title", "label"]:
-                        display_name = field.get("value")
-                        break
+                        return field.get("value")
                 
-                # Fallback to handle if no display name found
-                handle = metaobject.get("handle")
-                
-                resolved_name = display_name or handle
-                print(f"🎯 Metaobject resolved: display_name='{display_name}', handle='{handle}', using='{resolved_name}'")
-                return resolved_name
-            else:
-                print(f"⚠️ No metaobject found for GID: {gid}")
-                return None
-                
+                # Fallback to handle
+                return metaobject.get("handle")
+            
+            return None
         except Exception as e:
             print(f"💥 Exception in _fetch_metaobject_value: {e}")
             return None
@@ -217,17 +181,11 @@ class NykaaProductMapper:
         
         variant = variants[0]
         
-        # Check selectedOptions (new GraphQL structure)
+        # Check selectedOptions
         selected_options = variant.get("selectedOptions", [])
         for option in selected_options:
             if option.get("name", "").lower() == option_name.lower():
                 return option.get("value")
-        
-        # Fallback to old option fields for backward compatibility
-        for i in range(1, 4):
-            option_key = f"option{i}"
-            if option_key in variant and variant[option_key]:
-                return variant[option_key]
         
         return None
     
@@ -237,22 +195,16 @@ class NykaaProductMapper:
         
         Args:
             tags: List of product tags
-            prefix: Prefix to search for (e.g., "Color", "Gender")
+            prefix: Prefix to search for
         
         Returns:
             Extracted value or None
-        
-        Example:
-            tags = ["Color  Red", "Gender:Woman"]
-            extract_from_tags(tags, "Color") → "Red"
         """
         if not tags:
             return None
         
         for tag in tags:
-            # Handle both ":" and whitespace separators
             if tag.startswith(prefix):
-                # Remove prefix and clean
                 value = tag[len(prefix):].strip()
                 value = value.lstrip(":").strip()
                 if value:
@@ -264,22 +216,28 @@ class NykaaProductMapper:
                                      zakya_product: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Map a single Shopify product to Nykaa format
-        NOW SUPPORTS: Automatic Zakya data extraction from _zakya_data field
+        NOW WITH ZAKYA-FIRST PRIORITY
         
         Args:
             shopify_product: Product data from Shopify GraphQL
-            zakya_product: Optional product data from Zakya (legacy parameter)
+            zakya_product: Optional product data from Zakya
         
         Returns:
             Dictionary with Nykaa column names as keys
         """
         
-        # NEW: Check if Zakya data is attached to Shopify product
+        # Check if Zakya data is attached to Shopify product
         if not zakya_product and "_zakya_data" in shopify_product:
             zakya_product = shopify_product["_zakya_data"]
-            print(f"📦 Using attached Zakya data for SKU: {zakya_product.get('sku', 'unknown') if zakya_product else 'none'}")
         
-        # Extract data from Shopify product
+        # =====================================================
+        # EXTRACT ZAKYA METADATA (PRIORITY SOURCE)
+        # =====================================================
+        zakya_meta = extract_zakya_metadata(zakya_product) if zakya_product else {}
+        
+        # =====================================================
+        # EXTRACT SHOPIFY DATA
+        # =====================================================
         product_id = shopify_product.get("id", "")
         title = shopify_product.get("title", "")
         description = shopify_product.get("descriptionHtml", "") or shopify_product.get("description", "")
@@ -302,52 +260,58 @@ class NykaaProductMapper:
         metafields = [edge["node"] for edge in metafields_edges] if metafields_edges else []
         
         # =====================================================
-        # MAP TO NYKAA COLUMNS
+        # MAP TO NYKAA COLUMNS WITH ZAKYA PRIORITY
         # =====================================================
         
         nykaa_row = {}
         
         # --- VENDOR SKU CODE (Mandatory) ---
-        nykaa_row["Vendor SKU Code"] = first_variant.get("sku", "") or handle
+        raw_sku = (
+            zakya_meta.get("sku") or
+            first_variant.get("sku", "") or
+            handle
+        )
+        # Normalize SKU to remove variant suffixes
+        nykaa_row["Vendor SKU Code"] = normalize_sku(raw_sku)
         
         # --- GENDER (Mandatory) ---
-        # Try: metaobject → tags → default
-        gender = self.get_metafield_value(metafields, "shopify", "target-gender")
-        if not gender:
-            gender = self.extract_from_tags(tags, "Gender")
+        # Priority: Zakya → Shopify metafield → tags → default
+        gender = (
+            zakya_meta.get("gender") or
+            self.get_metafield_value(metafields, "shopify", "target-gender") or
+            self.extract_from_tags(tags, "Gender")
+        )
         nykaa_row["Gender"] = gender or JEWELRY_DEFAULTS["gender"]
         
         # --- BRAND NAME (Mandatory) ---
         nykaa_row["Brand Name"] = vendor or self.brand_name
         
         # --- STYLE CODE (Mandatory) ---
-        style_code = first_variant.get("sku", "") or handle
-        nykaa_row["Style Code"] = style_code
+        nykaa_row["Style Code"] = nykaa_row["Vendor SKU Code"]
         
         # --- PRODUCT NAME (Mandatory) ---
-        # Remove brand name from title
         product_name = remove_brand_from_title(title, self.brand_name)
         nykaa_row["Product Name"] = product_name
         
         # --- DESCRIPTION (Mandatory) ---
-        # Clean description according to Nykaa guidelines
-        nykaa_row["Description"] = clean_description(description)
+        # Priority: Zakya cf_product_description → Shopify description
+        desc_text = zakya_meta.get("product_description") or description
+        nykaa_row["Description"] = clean_description(desc_text)
         
         # --- PRICE (Mandatory) ---
-        # Priority: Zakya rate > Shopify variant price
-        if zakya_product and "rate" in zakya_product:
-            nykaa_row["Price"] = str(zakya_product["rate"])
-        else:
-            nykaa_row["Price"] = str(first_variant.get("price", "0"))
+        # Priority: Zakya rate → Shopify variant price
+        price = zakya_meta.get("price") or first_variant.get("price", "0")
+        nykaa_row["Price"] = str(price)
         
         # --- COLOR (Mandatory) ---
-        # Try: metaobject → variant → tags → default
-        color = self.get_metafield_value(metafields, "shopify", "color-pattern")
-        if not color:
-            color = self.extract_variant_option(variant_nodes, "Color")
-        if not color:
-            color = self.extract_from_tags(tags, "Color")
-        nykaa_row["Color"] = color or "Multicolor"
+        color = (
+            self.get_metafield_value(metafields, "shopify", "color-pattern") or
+            self.extract_variant_option(variant_nodes, "Color") or
+            self.extract_from_tags(tags, "Color") or
+            self.extract_from_tags(tags, "color")
+        )
+        # NORMALIZE THE COLOR
+        nykaa_row["Color"] = normalize_dropdown_value(color, COLOR_MAPPING) if color else "Multi-Color"
         
         # --- COUNTRY OF ORIGIN (Mandatory) ---
         nykaa_row["Country of Origin"] = COMPANY_DEFAULTS["country_of_origin"]
@@ -369,80 +333,121 @@ class NykaaProductMapper:
         nykaa_row["brand size"] = size or "One Size"
         
         # --- MULTIPACK SET (Mandatory) ---
-        nykaa_row["Multipack Set"] = JEWELRY_DEFAULTS["multipack_set"]
+        # Priority: Zakya components → parse description
+        components = zakya_meta.get("components")
+        if not components:
+            components = parse_components_from_description(description)
+        nykaa_row["Multipack Set"] = get_multipack_set(components)
         
         # --- OCCASION (Mandatory) ---
-        # Try: addfea.occasion metafield → tags → default
+        # Priority: Shopify metafield → parse description → default
         occasion = self.get_metafield_value(metafields, "addfea", "occasion")
-        nykaa_row["Occasion"] = occasion or "Party, Wedding, Festive"
+        if not occasion:
+            # Parse from description for keywords
+            desc_lower = description.lower() if description else ""
+            if "any function" in desc_lower or "any occasion" in desc_lower:
+                occasion = "Any Occasion"
+            elif "wedding" in desc_lower:
+                occasion = "Wedding, Party"
+            elif "party" in desc_lower:
+                occasion = "Party"
+
+        # NORMALIZE THE OCCASION
+        nykaa_row["Occasion"] = normalize_dropdown_value(occasion, OCCASION_MAPPING) if occasion else JEWELRY_DEFAULTS["occasion"]
         
         # --- SEASON (Mandatory) ---
-        nykaa_row["Season"] = JEWELRY_DEFAULTS["season"]
+        # Dynamic based on current date
+        nykaa_row["Season"] = get_current_season()
         
         # --- CARE INSTRUCTION (Mandatory) ---
-        care = COMPANY_DEFAULTS["care_instructions"]
-        nykaa_row["Care Instruction"] = care
+        nykaa_row["Care Instruction"] = COMPANY_DEFAULTS["care_instructions"]
         
         # --- SHIPS IN (Mandatory) ---
-        # Can extract from meta.estimateStartDate and meta.estimateEndDate
+        # Try to get from metafields, otherwise use default integer value
         start_days = self.get_metafield_value(metafields, "meta", "estimateStartDate")
         end_days = self.get_metafield_value(metafields, "meta", "estimateEndDate")
-        if start_days and end_days:
-            nykaa_row["Ships In"] = f"{start_days}-{end_days} Days"
+        
+        if end_days:
+            try:
+                # Use the end_days as integer (maximum shipping time)
+                nykaa_row["Ships In"] = int(end_days)
+            except (ValueError, TypeError):
+                nykaa_row["Ships In"] = COMPANY_DEFAULTS["ships_in"]
         else:
             nykaa_row["Ships In"] = COMPANY_DEFAULTS["ships_in"]
         
         # --- HSN CODES (Mandatory) ---
-        nykaa_row["HSN Codes"] = COMPANY_DEFAULTS["hsn_code"]
+        # Priority: Zakya hsn_or_sac → Shopify metafield → default
+        hsn = (
+            zakya_meta.get("hsn_code") or
+            self.get_metafield_value(metafields, "custom", "hsn_code")
+        )
+        # Validate and ensure HSN is 6 or 8 digits
+        nykaa_row["HSN Codes"] = validate_hsn(hsn or COMPANY_DEFAULTS["hsn_code"])
         
         # --- PACK CONTAINS (Mandatory) ---
-        # Try to extract from tags (Component:...)
-        components = []
-        for tag in tags:
-            if tag.startswith("Component:"):
-                component = tag.replace("Component:", "").strip()
-                components.append(component)
-        
-        if components:
-            nykaa_row["Pack Contains"] = generate_pack_contains(", ".join(components), has_box=True)
-        else:
-            # Use product_type or fallback to generic description
-            jewelry_type = product_type or "Jewelry"
-            nykaa_row["Pack Contains"] = generate_pack_contains(jewelry_type, has_box=True)
-        
+        pack_contains_raw = get_pack_contains(components)
+        nykaa_row["Pack Contains"] = clean_pack_contains(pack_contains_raw)
+                
         # --- NET QTY (Mandatory) ---
         nykaa_row["Net Qty"] = JEWELRY_DEFAULTS["net_qty"]
         
         # --- MATERIAL (Mandatory) ---
-        # From custom.base_metal metaobject
-        material = self.get_metafield_value(metafields, "custom", "base_metal")
-        nykaa_row["Material"] = material or "Metal"
+        # ALWAYS "Alloy" for fashion jewelry
+        nykaa_row["Material"] = "Alloy"
         
         # --- PLATING (Mandatory) ---
-        # From custom.finish metaobject
-        plating = self.get_metafield_value(metafields, "custom", "finish")
-        if not plating:
-            # Try to extract from tags
-            plating = self.extract_from_tags(tags, "Finish")
-        nykaa_row["Plating"] = plating or "Not Applicable"
+        # Priority: Zakya cf_finish → parse description → default
+        # Returns comma-separated if multiple (e.g., "18K Gold, Rhodium")
+        nykaa_row["Plating"] = get_plating(
+            zakya_meta.get("finish"),
+            description
+        )
         
         # --- STYLES OF JEWELLERY (Mandatory) ---
-        # From custom.jewelry_line metaobject
-        style = self.get_metafield_value(metafields, "custom", "jewelry_line")
-        nykaa_row["Styles of Jewellery"] = style or "Contemporary"
-        
-        # --- TYPE OF JEWELLERY (Mandatory) ---
-        # From shopify.jewelry-type metaobject or product_type
-        jewelry_type = self.get_metafield_value(metafields, "shopify", "jewelry-type")
-        nykaa_row["Type of Jewellery"] = jewelry_type or product_type or "Jewelry Set"
+        # Priority: Zakya cf_work → cf_collection → detect from name/description → tags → default
+        style = get_style(
+            zakya_meta.get("work"),
+            zakya_meta.get("collection")
+        )
+
+        # If no style, try to detect from product text
+        if not style or style == "Contemporary":
+            detected_style = detect_style_from_text(f"{title} {description}")
+            if detected_style:
+                style = detected_style
+            else:
+                # Try tags as last resort
+                tag_style = get_style_from_tags(tags)
+                if tag_style:
+                    style = tag_style
+
+        # NORMALIZE THE STYLE  
+        nykaa_row["Styles of Jewellery"] = normalize_dropdown_value(style, STYLES_MAPPING)
+                # --- TYPE OF JEWELLERY (Mandatory) ---
+        # Priority: Zakya category_name → cf_components → Shopify productType
+        jewelry_type = (
+            zakya_meta.get("category_name") or
+            get_type_from_components(components) or
+            product_type
+        )
+        nykaa_row["Type of Jewellery"] = map_jewelry_type(jewelry_type)
         
         # --- SEGMENT (Mandatory) ---
-        nykaa_row["Segment"] = JEWELRY_DEFAULTS["segment"]
+        # Collection-based logic
+        segment = get_segment(
+            zakya_meta.get("collection"),
+            nykaa_row["Material"]
+        )
+        # Fallback to tags
+        if not zakya_meta.get("collection"):
+            segment = get_segment_from_tags(tags, nykaa_row["Material"])
+        nykaa_row["Segment"] = segment
         
         # --- FRONT IMAGE (Mandatory) ---
         nykaa_row["Front Image"] = image_nodes[0]["url"] if len(image_nodes) > 0 else ""
         
-        # --- BACK IMAGE (Mandatory) ---
+        # --- BACK IMAGE (Mandatory) - Must be different from front image ---
         nykaa_row["Back Image"] = image_nodes[1]["url"] if len(image_nodes) > 1 else ""
         
         # =====================================================
@@ -450,7 +455,16 @@ class NykaaProductMapper:
         # =====================================================
         
         # --- EAN CODES (Optional) ---
-        nykaa_row["Ean Codes"] = first_variant.get("barcode", "")
+        barcode = first_variant.get("barcode", "")
+        if barcode and len(barcode) == 13 and barcode.isdigit():
+            nykaa_row["Ean Codes"] = barcode
+        else:
+            try:
+                from agent.nykaa_rewriter.ean_generator import generate_ean13
+                nykaa_row["Ean Codes"] = generate_ean13()
+            except Exception as e:
+                print(f"⚠️ Failed to generate EAN: {e}")
+                nykaa_row["Ean Codes"] = ""
         
         # --- DESIGN CODE (Optional) ---
         nykaa_row["Design Code"] = ""
@@ -468,10 +482,7 @@ class NykaaProductMapper:
         nykaa_row["Warranty"] = COMPANY_DEFAULTS["warranty"]
         
         # --- PRODUCT WEIGHT (Optional) ---
-        # Try to get weight from metafields first, then from Zakya data
-        weight = self.get_metafield_value(metafields, "custom", "weight")
-        if not weight and zakya_product:
-            weight = zakya_product.get("weight", "")
+        weight = zakya_meta.get("weight") or self.get_metafield_value(metafields, "custom", "weight")
         nykaa_row["Product Weight"] = str(weight) if weight else ""
         
         # --- DIMENSIONS (Optional) ---
@@ -484,12 +495,11 @@ class NykaaProductMapper:
         nykaa_row["Age"] = ""
         
         # --- AGE GROUP (Optional) ---
-        age_group = self.get_metafield_value(metafields, "shopify", "age-group")
-        nykaa_row["Age Group"] = age_group or ""
+        nykaa_row["Age Group"] = ""  # Empty for adults
         
         # --- ADDITIONAL IMAGES (Optional) ---
         for i in range(1, 9):
-            image_index = i + 1  # +1 because first 2 are Front and Back
+            image_index = i + 1
             if image_index < len(image_nodes):
                 nykaa_row[f"Additional Image {i}"] = image_nodes[image_index]["url"]
             else:
@@ -507,7 +517,7 @@ class NykaaProductMapper:
         zakya_lookup = {}
         if zakya_products:
             for zp in zakya_products:
-                if zp:  # Skip None values
+                if zp:
                     sku = zp.get("sku") or zp.get("item_id")
                     if sku:
                         zakya_lookup[sku] = zp
@@ -519,7 +529,7 @@ class NykaaProductMapper:
             variants = shopify_product.get("variants", {}).get("edges", [])
             variant_nodes = [edge["node"] for edge in variants] if variants else []
             sku = variant_nodes[0].get("sku") if variant_nodes else None
-            
+
             zakya_product = zakya_lookup.get(sku) if sku else None
             
             # Map to Nykaa format
@@ -528,10 +538,12 @@ class NykaaProductMapper:
             # Validate
             is_valid, errors = validate_nykaa_row(nykaa_row)
             if not is_valid:
-                print(f"⚠️  Validation errors for SKU {nykaa_row.get('Vendor SKU Code')}:")
+                print(f"⚠️  Skipping product with SKU {nykaa_row.get('Vendor SKU Code')} due to validation errors:")
                 for error in errors:
                     print(f"   - {error}")
+                continue  # Skip this product - don't add to nykaa_rows
             
+            # Only add valid products
             nykaa_rows.append(nykaa_row)
         
         # Create DataFrame with all Nykaa columns
