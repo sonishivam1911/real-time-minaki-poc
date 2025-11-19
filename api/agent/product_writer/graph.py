@@ -6,7 +6,7 @@ from langgraph.graph import StateGraph, END
 from langsmith import traceable
 
 from ...utils.schema.product_writer_agent import AgentState, ProductOutput, ActionInput
-from .prompt import PRODUCT_CONTENT_PROMPT
+from .kundan_jewellery_prompt import PRODUCT_CONTENT_PROMPT
 
 
 class GraphState(TypedDict):
@@ -18,7 +18,7 @@ class GraphState(TypedDict):
 
 # Initialize Groq LLM
 llm = ChatGroq(
-    model="llama-3.3-70b-versatile",  # Fast, free tier, excellent quality
+    model="llama-3.1-8b-instant",  # Fast, free tier, excellent quality
     temperature=0.7,  # Creative but controlled
     api_key=os.getenv("GROQ_API_KEY"),
 )

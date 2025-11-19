@@ -1,5 +1,5 @@
 import requests
-from api.core.config import settings
+from core.config import settings
 
 class ZakyaService:
     @staticmethod
