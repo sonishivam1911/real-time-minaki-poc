@@ -14,6 +14,7 @@ from controller.shopify.metaobject import controller as metaobjects
 from controller.image_editing import controller as image_editing_controller
 from controller.shopify.metafield_migration import controller as metafield_migration_controller
 from controller.agent import controller as agent_controller
+from controller.agent import test_controller as agent_test_controller
 from controller.nayka import controller as nykaa_controller
 
 app = FastAPI(
@@ -103,6 +104,12 @@ app.include_router(
     agent_controller.router,
     prefix="/api/agent",
     tags=["Minaki Agents"]
+)
+
+app.include_router(
+    agent_test_controller.router,
+    prefix="/api/agent/test",
+    tags=["Minaki Agents - Testing"]
 )
 
 @app.get("/", tags=["System"])
