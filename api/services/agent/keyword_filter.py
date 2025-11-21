@@ -67,6 +67,16 @@ class KeywordFilter:
         # Clean column names
         self.keywords_df.columns = self.keywords_df.columns.str.strip()
         
+        # Verify required columns exist
+        required_columns = ['Keyword', 'Avg. monthly searches']
+        missing_columns = [col for col in required_columns if col not in self.keywords_df.columns]
+        
+        if missing_columns:
+            available_cols = list(self.keywords_df.columns)
+            error_msg = f"Missing required columns: {missing_columns}. Available columns: {available_cols}"
+            print(f"❌ ERROR: {error_msg}")
+            raise ValueError(error_msg)
+        
         # Convert search volume to numeric
         if self.keywords_df['Avg. monthly searches'].dtype == 'object':
             self.keywords_df['Avg. monthly searches'] = pd.to_numeric(
@@ -81,6 +91,7 @@ class KeywordFilter:
                 self.keywords_df[col] = pd.to_numeric(self.keywords_df[col], errors='coerce').fillna(0)
         
         print(f"📊 Loaded {len(self.keywords_df)} keywords from CSV")
+        print(f"📋 Columns: {list(self.keywords_df.columns)}")
     
     def filter_for_kundan_polki(
         self, 
