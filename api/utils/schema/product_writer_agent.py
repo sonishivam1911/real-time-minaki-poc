@@ -218,50 +218,61 @@ class FullProductCreationResponse(BaseModel):
 
 
 class ProductMetafieldMapping(BaseModel):
-    """Mapping configuration for CSV fields to Shopify metafields"""
+    """
+    Mapping configuration for CSV fields to Shopify metafields
     
-    # Core product attributes
-    gender_namespace: str = "addfea"
+    IMPORTANT: These are the SAFE, TESTED namespaces and keys.
+    DO NOT change without verifying they exist in your Shopify store!
+    
+    To find what's actually in your store, run:
+    - Get all product metafields
+    - Check namespace.service.get_all_unique_namespaces()
+    - Use metafield_validator.py to inspect definitions
+    """
+    
+    # Core product attributes - CUSTOM namespace (safest)
+    # These will be skipped silently if they don't exist
+    gender_namespace: str = "custom"
     gender_key: str = "gender" 
     
-    style_namespace: str = "addfea"
+    style_namespace: str = "custom"
     style_key: str = "style"
     
     components_namespace: str = "custom"
     components_key: str = "components"
     
-    color_namespace: str = "addfea"
+    color_namespace: str = "custom"
     color_key: str = "color"
     
     # Material and finish
     finish_namespace: str = "custom"
     finish_key: str = "finish"
     
-    finding_namespace: str = "addfea"
-    finding_key: str = "data3"
-    finding_label_namespace: str = "addfea"
-    finding_label_key: str = "label3"
+    finding_namespace: str = "custom"
+    finding_key: str = "finding"
+    finding_label_namespace: str = "custom"
+    finding_label_key: str = "finding_label"
     
     # Work/craftsmanship
-    work_namespace: str = "addfea"
-    work_key: str = "data1"
-    work_label_namespace: str = "addfea"
-    work_label_key: str = "label1"
+    work_namespace: str = "custom"
+    work_key: str = "work"
+    work_label_namespace: str = "custom"
+    work_label_key: str = "work_label"
     
     # Base metal
-    base_metal_namespace: str = "addfea"
-    base_metal_key: str = "data2"
-    base_metal_label_namespace: str = "addfea"
-    base_metal_label_key: str = "label2"
+    base_metal_namespace: str = "custom"
+    base_metal_key: str = "base_metal"
+    base_metal_label_namespace: str = "custom"
+    base_metal_label_key: str = "base_metal_label"
     
     # Additional attributes
-    occasions_namespace: str = "addfea"
-    occasions_key: str = "occasion"
+    occasions_namespace: str = "custom"
+    occasions_key: str = "occasions"
     
-    styling_tip_namespace: str = "addfea"
+    styling_tip_namespace: str = "custom"
     styling_tip_key: str = "styling_tip"
     
-    # SEO metafields
+    # SEO metafields - GLOBAL namespace (standard Shopify)
     seo_title_namespace: str = "global"
     seo_title_key: str = "title_tag"
     
@@ -269,5 +280,5 @@ class ProductMetafieldMapping(BaseModel):
     seo_description_key: str = "description_tag"
     
     # Meta description excerpt
-    meta_description_namespace: str = "meta"
-    meta_description_key: str = "description_excerpt"
+    meta_description_namespace: str = "custom"
+    meta_description_key: str = "meta_description"

@@ -4,7 +4,7 @@ Handles both CSVs and runs complete workflow
 """
 
 from fastapi import APIRouter, HTTPException, status, UploadFile, File
-from typing import List
+from typing import List, Optional
 import logging
 import pandas as pd
 import io
@@ -12,10 +12,14 @@ import io
 from services.agent.normalize_columns import parse_csv_content
 from utils.schema.product_writer_agent import ProductCSVRow
 from services.shopify.product import ShopifyProductService
+from services.shopify.metafield import ShopifyMetafieldService
 from services.shopify.product_filtering import ProductFilterService
+from services.shopify.metafield_validator import MetafieldValidator
+from services.shopify.product_image_service import ProductImageService
 from services.agent.product_writer_service import ProductWriterService
 from utils.logger import logger
 from utils.tag_generator import TagGenerator
+from utils.metafield_value_mapper import MetafieldValueMapper
 
 router = APIRouter()
 
@@ -86,15 +90,36 @@ async def upload_and_generate_content(
                 sep='\t',
                 skiprows=2  # Skip title and date rows
             )
-        except:
-            # Fallback to UTF-8 if UTF-16 fails
-            keywords_df = pd.read_csv(
-                io.StringIO(keywords_content.decode('utf-8')),
-                sep=',',
-                skiprows=0
-            )
+        except Exception as utf16_error:
+            logger.warning(f"UTF-16 parsing failed: {str(utf16_error)}. Trying UTF-8...")
+            try:
+                # Fallback to UTF-8 if UTF-16 fails
+                keywords_df = pd.read_csv(
+                    io.StringIO(keywords_content.decode('utf-8')),
+                    sep=',',
+                    skiprows=2  # Apply skiprows here too for consistency
+                )
+            except Exception as utf8_error:
+                logger.warning(f"UTF-8 with skiprows=2 failed: {str(utf8_error)}. Trying without skiprows...")
+                keywords_df = pd.read_csv(
+                    io.StringIO(keywords_content.decode('utf-8')),
+                    sep=','
+                )
         
-        logger.info(f"Keyords CSV columns: {keywords_df.head()}")
+        # Clean column names - strip whitespace and normalize
+        keywords_df.columns = keywords_df.columns.str.strip()
+        
+        logger.info(f"Keywords CSV columns: {list(keywords_df.columns)}")
+        logger.info(f"Keywords CSV shape: {keywords_df.shape}")
+        logger.info(f"First row:\n{keywords_df.head(1)}")
+        
+        # Check if 'Avg. monthly searches' column exists
+        if 'Avg. monthly searches' not in keywords_df.columns:
+            logger.error(f"Available columns: {list(keywords_df.columns)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Keywords CSV must contain 'Avg. monthly searches' column. Found columns: {list(keywords_df.columns)}"
+            )
 
         # Initialize writer service
         writer_service = ProductWriterService(keywords_df)
@@ -213,15 +238,32 @@ async def update_existing_products_with_ai_content(
                 sep='\t',
                 skiprows=2  # Skip title and date rows
             )
-        except:
-            # Fallback to UTF-8 if UTF-16 fails
-            keywords_df = pd.read_csv(
-                io.StringIO(keywords_content.decode('utf-8')),
-                sep=',',
-                skiprows=0
-            )
+        except Exception as utf16_error:
+            logger.warning(f"UTF-16 parsing failed: {str(utf16_error)}. Trying UTF-8...")
+            try:
+                # Fallback to UTF-8 if UTF-16 fails
+                keywords_df = pd.read_csv(
+                    io.StringIO(keywords_content.decode('utf-8')),
+                    sep=',',
+                    skiprows=2  # Apply skiprows here too for consistency
+                )
+            except Exception as utf8_error:
+                logger.warning(f"UTF-8 with skiprows=2 failed: {str(utf8_error)}. Trying without skiprows...")
+                keywords_df = pd.read_csv(
+                    io.StringIO(keywords_content.decode('utf-8')),
+                    sep=','
+                )
         
-        # logger.info(f"Keywords CSV columns: {keywords_df.head()}")
+        # Clean column names - strip whitespace and normalize
+        keywords_df.columns = keywords_df.columns.str.strip()
+        
+        # Check if 'Avg. monthly searches' column exists
+        if 'Avg. monthly searches' not in keywords_df.columns:
+            logger.error(f"Available columns: {list(keywords_df.columns)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Keywords CSV must contain 'Avg. monthly searches' column. Found columns: {list(keywords_df.columns)}"
+            )
 
         # STEP 3: Initialize services
         writer_service = ProductWriterService(keywords_df)
@@ -535,6 +577,7 @@ async def update_existing_products_with_ai_content(
         )
 
 
+
 @router.post("/writer-agent-create-draft-products", status_code=status.HTTP_200_OK)
 async def create_draft_products_with_enhanced_tags(
     products_file: UploadFile = File(..., description="Products CSV file"),
@@ -607,17 +650,34 @@ async def create_draft_products_with_enhanced_tags(
             keywords_df = pd.read_csv(
                 io.StringIO(keywords_content.decode('utf-16')),
                 sep='\t',
-                skiprows=2  # Skip title and date rows
+                skiprows=2
             )
-        except:
-            # Fallback to UTF-8 if UTF-16 fails
-            keywords_df = pd.read_csv(
-                io.StringIO(keywords_content.decode('utf-8')),
-                sep=',',
-                skiprows=0
-            )
+        except Exception as utf16_error:
+            logger.warning(f"UTF-16 parsing failed: {str(utf16_error)}. Trying UTF-8...")
+            try:
+                keywords_df = pd.read_csv(
+                    io.StringIO(keywords_content.decode('utf-8')),
+                    sep=',',
+                    skiprows=2
+                )
+            except Exception as utf8_error:
+                logger.warning(f"UTF-8 with skiprows=2 failed: {str(utf8_error)}. Trying without skiprows...")
+                keywords_df = pd.read_csv(
+                    io.StringIO(keywords_content.decode('utf-8')),
+                    sep=','
+                )
+        
+        keywords_df.columns = keywords_df.columns.str.strip()
         
         logger.info(f"Keywords CSV loaded with {len(keywords_df)} rows")
+        logger.info(f"Keywords CSV columns: {list(keywords_df.columns)}")
+        
+        if 'Avg. monthly searches' not in keywords_df.columns:
+            logger.error(f"Available columns: {list(keywords_df.columns)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Keywords CSV must contain 'Avg. monthly searches' column. Found columns: {list(keywords_df.columns)}"
+            )
 
         # STEP 3: Initialize services
         writer_service = ProductWriterService(keywords_df)
@@ -627,12 +687,9 @@ async def create_draft_products_with_enhanced_tags(
         product_dicts = []
         for product in validated_rows:
             product_dict = product.model_dump()
-            
-            # Clean up None values to empty strings for better processing
             for key, value in product_dict.items():
                 if value is None:
                     product_dict[key] = ''
-                    
             product_dicts.append(product_dict)
         
         # STEP 4: Generate AI content for all products
@@ -645,12 +702,9 @@ async def create_draft_products_with_enhanced_tags(
         # STEP 5: Create Shopify products in DRAFT status
         logger.info(f"🛍️ Step 4: Creating DRAFT Shopify products")
 
-        # Initialize Shopify service
+        # Initialize Shopify services
         shopify_service = ShopifyProductService()
-
-        # Create mapping for metafields
-        from utils.schema.product_writer_agent import ProductMetafieldMapping
-        mapping = ProductMetafieldMapping()
+        metafield_service = ShopifyMetafieldService(shopify_service.client)
 
         shopify_results = []
 
@@ -684,7 +738,7 @@ async def create_draft_products_with_enhanced_tags(
             
             try:
                 # Extract AI generated content
-                ai_content = result['generated_output']['action_input']
+                ai_content = result['content']
                 title = ai_content.get('title', f"Product {result['product_sku']}")
                 description = ai_content.get('description', '')
                 seo_title = ai_content.get('seo_meta_title', title)
@@ -705,10 +759,9 @@ async def create_draft_products_with_enhanced_tags(
                 }
                 product_type = category_mapping.get(matching_csv_row.category, "Jewelry")
                 
-                # ENHANCED TAG GENERATION - This is the key improvement!
+                # ENHANCED TAG GENERATION
                 logger.info(f"🏷️  Generating enhanced tags for SKU: {result['product_sku']}")
                 
-                # Prepare product data for tag generation
                 product_data_for_tags = {
                     'product_sku': matching_csv_row.product_sku,
                     'category': matching_csv_row.category,
@@ -723,7 +776,7 @@ async def create_draft_products_with_enhanced_tags(
                     'gender': matching_csv_row.gender
                 }
                 
-                # Get price from CSV if available (assuming it might be in variant_price or price field)
+                # Get price from CSV
                 price = None
                 if hasattr(matching_csv_row, 'variant_price') and matching_csv_row.variant_price:
                     try:
@@ -731,10 +784,9 @@ async def create_draft_products_with_enhanced_tags(
                     except (ValueError, TypeError):
                         pass
                 
-                # Generate availability days (default 3 days for quick shipping)
-                availability_days = 3  # You can make this configurable
+                availability_days = 3
                 
-                # Generate comprehensive tags using the enhanced system
+                # Generate comprehensive tags
                 enhanced_tags = tag_generator.generate_comprehensive_tags(
                     product_data=product_data_for_tags,
                     ai_generated_content=ai_content,
@@ -743,7 +795,6 @@ async def create_draft_products_with_enhanced_tags(
                 )
                 
                 logger.info(f"✅ Generated {len(enhanced_tags)} enhanced tags for SKU: {result['product_sku']}")
-                logger.debug(f"   Tags: {enhanced_tags[:10]}...")  # Log first 10 tags for debugging
                 
                 # Create base product in DRAFT status
                 product_data = {
@@ -751,26 +802,27 @@ async def create_draft_products_with_enhanced_tags(
                     "descriptionHtml": f"<p>{description}</p>",
                     "productType": product_type,
                     "vendor": "MINAKI",
-                    "tags": enhanced_tags,  # Use our enhanced tags instead of basic ones
-                    "status": "DRAFT",  # Create in DRAFT status for review
+                    "tags": enhanced_tags,
+                    "status": "DRAFT",
                     "seo": {
                         "title": seo_title,
                         "description": seo_description
-                    },
-                    "variants": [{
-                        "title": "Default Title",
-                        "inventoryQuantity": 0,
-                        "taxable": True
-                    }]
+                    }
+                }
+                
+                # Store variant data
+                variant_data = {
+                    "title": "Default Title",
+                    "inventoryQuantity": 0,
+                    "taxable": True
                 }
                 
                 if matching_csv_row.product_sku:
-                    product_data["variants"][0]["sku"] = matching_csv_row.product_sku
-                    product_data["variants"][0]["barcode"] = matching_csv_row.product_sku
+                    variant_data["sku"] = matching_csv_row.product_sku
+                    variant_data["barcode"] = matching_csv_row.product_sku
                 
-                # Add price if available
                 if price:
-                    product_data["variants"][0]["price"] = str(price)
+                    variant_data["price"] = str(price)
                 
                 # Create product in Shopify
                 logger.info(f"🏗️  Creating DRAFT product in Shopify for SKU: {result['product_sku']}")
@@ -792,225 +844,200 @@ async def create_draft_products_with_enhanced_tags(
                 
                 logger.info(f"✓ Created DRAFT product: {product_id} for SKU: {result['product_sku']}")
                 
-                # Create metafields with enhanced error handling
+                # FIXED: Query product to get variant ID
+                default_variant_id = None
+                variant_update_success = False
+                
+                logger.info(f"   🔍 Querying product to get default variant ID...")
+                variant_query_result = shopify_service.get_product_with_variant(product_id)
+                
+                if variant_query_result.get('data', {}).get('product', {}).get('variants', {}).get('edges'):
+                    default_variant_id = variant_query_result['data']['product']['variants']['edges'][0]['node']['id']
+                    logger.info(f"   ✅ Found default variant ID: {default_variant_id}")
+                    
+                    # Update variant with SKU, price, and barcode using productVariantUpdate
+                    if variant_data:
+                        try:
+                            variant_update_mutation = """
+                            mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+                                productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+                                    productVariants {
+                                        id
+                                        sku
+                                        price
+                                        barcode
+                                    }
+                                    userErrors {
+                                        field
+                                        message
+                                    }
+                                }
+                            }
+                            """
+                            
+                            # Build variant update input with correct structure for API 2025-01
+                            variant_update_input = {
+                                "id": default_variant_id,
+                                "taxable": variant_data.get("taxable", True)
+                            }
+
+                            # Add barcode at top level (this is correct)
+                            if variant_data.get("barcode"):
+                                variant_update_input["barcode"] = variant_data["barcode"]
+
+                            # Add price at top level (this is correct)
+                            if variant_data.get("price"):
+                                variant_update_input["price"] = variant_data["price"]
+
+                            # SKU must be nested inside inventoryItem
+                            if variant_data.get("sku"):
+                                variant_update_input["inventoryItem"] = {
+                                    "sku": variant_data["sku"]
+                                }
+
+                            logger.info(f"   📝 Updating variant: SKU={variant_data.get('sku')}, Price={variant_data.get('price')}")
+
+                            variant_result = shopify_service.client.execute_query(
+                                variant_update_mutation,
+                                {
+                                    'productId': product_id,
+                                    'variants': [variant_update_input]
+                                }
+                            )
+                            
+                            # Check for GraphQL errors
+                            if variant_result.get('errors'):
+                                logger.error(f"   ❌ GraphQL errors: {variant_result.get('errors')}")
+                            
+                            # Check for user errors
+                            variant_errors = variant_result.get('data', {}).get('productVariantUpdate', {}).get('userErrors', [])
+                            if variant_errors:
+                                logger.error(f"   ❌ Variant user errors: {variant_errors}")
+                                for err in variant_errors:
+                                    logger.error(f"      - {err.get('field')}: {err.get('message')}")
+                            
+                            # Check if update was successful
+                            updated_variant = variant_result.get('data', {}).get('productVariantUpdate', {}).get('productVariant')
+                            if updated_variant:
+                                logger.info(f"   ✅ SUCCESS: Updated variant")
+                                logger.info(f"      - SKU: {updated_variant.get('sku')}")
+                                logger.info(f"      - Price: {updated_variant.get('price')}")
+                                logger.info(f"      - Barcode: {updated_variant.get('barcode')}")
+                                variant_update_success = True
+                            else:
+                                logger.error(f"   ❌ FAILED: No variant returned in response")
+                                logger.error(f"      Full response: {variant_result}")
+                        
+                        except Exception as e:
+                            logger.error(f"   ❌ Exception updating variant: {str(e)}", exc_info=True)
+                else:
+                    logger.warning(f"   ⚠️  Could not find variant in query response")                
+                
+                # ============================================
+                # CREATE METAFIELDS USING ShopifyMetafieldService
+                # ============================================
+                
                 metafields_created = []
                 import json
                 import time
                 
-                # Gender metafield
+                # Helper to track created metafields
+                def create_metafield_safe(namespace: str, key: str, value: str, field_type: str = "single_line_text_field") -> bool:
+                    """Create metafield with error handling"""
+                    if not value:
+                        return False
+                    
+                    try:
+                        result = metafield_service.add_or_update_metafield(
+                            product_id=product_id,
+                            namespace=namespace,
+                            key=key,
+                            value=value,
+                            field_type=field_type
+                        )
+                        
+                        # Check if successful
+                        if result.get('data', {}).get('metafieldsSet', {}).get('metafields'):
+                            metafields_created.append(f"{namespace}.{key}")
+                            logger.debug(f"   ✓ Created {namespace}.{key}")
+                            time.sleep(0.1)  # Rate limiting
+                            return True
+                        else:
+                            user_errors = result.get('data', {}).get('metafieldsSet', {}).get('userErrors', [])
+                            if user_errors:
+                                logger.debug(f"   ⊘ Skipped {namespace}.{key}: {user_errors}")
+                            return False
+                    except Exception as e:
+                        logger.debug(f"   ⊘ Skipped {namespace}.{key}: {str(e)}")
+                        return False
+                
+                logger.info(f"   📝 Creating metafields for SKU: {result['product_sku']}")
+                
+                # Gender - 'addfea' namespace
                 if matching_csv_row.gender:
-                    try:
-                        shopify_service.add_metafield_to_product(
-                            product_id=product_id,
-                            namespace=mapping.gender_namespace,
-                            key=mapping.gender_key,
-                            value=matching_csv_row.gender,
-                            field_type="single_line_text_field"
-                        )
-                        metafields_created.append(f"{mapping.gender_namespace}.{mapping.gender_key}")
-                        time.sleep(0.2)
-                    except Exception as e:
-                        logger.warning(f"Failed to create gender metafield: {str(e)}")
+                    mapped_gender = MetafieldValueMapper.map_gender(matching_csv_row.gender)
+                    create_metafield_safe("addfea", "gender", mapped_gender, "single_line_text_field")
                 
-                # Style metafield
+                # Style - 'addfea' namespace
                 if matching_csv_row.style:
-                    try:
-                        shopify_service.add_metafield_to_product(
-                            product_id=product_id,
-                            namespace=mapping.style_namespace,
-                            key=mapping.style_key,
-                            value=matching_csv_row.style,
-                            field_type="single_line_text_field"
-                        )
-                        metafields_created.append(f"{mapping.style_namespace}.{mapping.style_key}")
-                        time.sleep(0.2)
-                    except Exception as e:
-                        logger.warning(f"Failed to create style metafield: {str(e)}")
+                    create_metafield_safe("addfea", "style", matching_csv_row.style, "single_line_text_field")
                 
-                # Components metafield (as list)
+                # Group (category) - 'addfea' namespace
+                if matching_csv_row.category:
+                    create_metafield_safe("addfea", "group", matching_csv_row.category, "single_line_text_field")
+                
+                # Components - 'custom' namespace as LIST
                 if matching_csv_row.components:
-                    try:
-                        components_list = [comp.strip() for comp in matching_csv_row.components.split(',') if comp.strip()]
-                        shopify_service.add_metafield_to_product(
-                            product_id=product_id,
-                            namespace=mapping.components_namespace,
-                            key=mapping.components_key,
-                            value=json.dumps(components_list),
-                            field_type="list.single_line_text_field"
-                        )
-                        metafields_created.append(f"{mapping.components_namespace}.{mapping.components_key}")
-                        time.sleep(0.2)
-                    except Exception as e:
-                        logger.warning(f"Failed to create components metafield: {str(e)}")
+                    components_list = [comp.strip() for comp in matching_csv_row.components.split(',') if comp.strip()]
+                    create_metafield_safe("custom", "components", json.dumps(components_list), "list.single_line_text_field")
                 
-                # Colors metafield (as list)
+                # Colors - 'addfea' namespace as LIST
                 colors = []
                 if matching_csv_row.primary_color:
                     colors.append(matching_csv_row.primary_color)
                 if matching_csv_row.secondary_color:
                     colors.append(matching_csv_row.secondary_color)
                 if colors:
-                    try:
-                        shopify_service.add_metafield_to_product(
-                            product_id=product_id,
-                            namespace=mapping.color_namespace,
-                            key=mapping.color_key,
-                            value=json.dumps(colors),
-                            field_type="list.single_line_text_field"
-                        )
-                        metafields_created.append(f"{mapping.color_namespace}.{mapping.color_key}")
-                        time.sleep(0.2)
-                    except Exception as e:
-                        logger.warning(f"Failed to create color metafield: {str(e)}")
+                    create_metafield_safe("addfea", "color", json.dumps(colors), "list.single_line_text_field")
                 
-                # Work/Stone Setting with label
+                # Work/Craftsmanship - using label/data pattern
                 if matching_csv_row.work:
-                    try:
-                        # Label
-                        shopify_service.add_metafield_to_product(
-                            product_id=product_id,
-                            namespace=mapping.work_label_namespace,
-                            key=mapping.work_label_key,
-                            value="Stone Setting",
-                            field_type="single_line_text_field"
-                        )
-                        time.sleep(0.2)
-                        
-                        # Data
-                        shopify_service.add_metafield_to_product(
-                            product_id=product_id,
-                            namespace=mapping.work_namespace,
-                            key=mapping.work_key,
-                            value=json.dumps([matching_csv_row.work]),
-                            field_type="list.single_line_text_field"
-                        )
-                        metafields_created.append(f"{mapping.work_namespace}.{mapping.work_key}")
-                        time.sleep(0.2)
-                    except Exception as e:
-                        logger.warning(f"Failed to create work metafields: {str(e)}")
+                    create_metafield_safe("addfea", "label1", "Stone Setting", "single_line_text_field")
+                    create_metafield_safe("addfea", "data1", json.dumps([matching_csv_row.work]), "list.single_line_text_field")
                 
-                # Finish with label
+                # Finish - using label/data pattern
                 if matching_csv_row.finish:
-                    try:
-                        # Label
-                        shopify_service.add_metafield_to_product(
-                            product_id=product_id,
-                            namespace=mapping.base_metal_label_namespace,
-                            key=mapping.base_metal_label_key,
-                            value="Finish",
-                            field_type="single_line_text_field"
-                        )
-                        time.sleep(0.2)
-                        
-                        # Data
-                        shopify_service.add_metafield_to_product(
-                            product_id=product_id,
-                            namespace=mapping.base_metal_namespace,
-                            key=mapping.base_metal_key,
-                            value=matching_csv_row.finish,
-                            field_type="single_line_text_field"
-                        )
-                        metafields_created.append(f"{mapping.base_metal_namespace}.{mapping.base_metal_key}")
-                        time.sleep(0.2)
-                    except Exception as e:
-                        logger.warning(f"Failed to create finish metafields: {str(e)}")
+                    mapped_finish = MetafieldValueMapper.map_finish(matching_csv_row.finish)
+                    create_metafield_safe("addfea", "label2", "Finish", "single_line_text_field")
+                    create_metafield_safe("addfea", "data2", mapped_finish, "single_line_text_field")
                 
-                # Finding with label
+                # Finding - using label/data pattern
                 if matching_csv_row.finding:
-                    try:
-                        # Label
-                        shopify_service.add_metafield_to_product(
-                            product_id=product_id,
-                            namespace=mapping.finding_label_namespace,
-                            key=mapping.finding_label_key,
-                            value="Finding",
-                            field_type="single_line_text_field"
-                        )
-                        time.sleep(0.2)
-                        
-                        # Data
-                        shopify_service.add_metafield_to_product(
-                            product_id=product_id,
-                            namespace=mapping.finding_namespace,
-                            key=mapping.finding_key,
-                            value=matching_csv_row.finding,
-                            field_type="single_line_text_field"
-                        )
-                        metafields_created.append(f"{mapping.finding_namespace}.{mapping.finding_key}")
-                        time.sleep(0.2)
-                    except Exception as e:
-                        logger.warning(f"Failed to create finding metafields: {str(e)}")
+                    create_metafield_safe("addfea", "label3", "Finding", "single_line_text_field")
+                    create_metafield_safe("addfea", "data3", matching_csv_row.finding, "single_line_text_field")
                 
-                # Occasions metafield (as list)
+                # Occasions - 'addfea' namespace as LIST
                 if matching_csv_row.occasions:
-                    try:
-                        occasions_list = [occ.strip() for occ in matching_csv_row.occasions.split(',') if occ.strip()]
-                        shopify_service.add_metafield_to_product(
-                            product_id=product_id,
-                            namespace=mapping.occasions_namespace,
-                            key=mapping.occasions_key,
-                            value=json.dumps(occasions_list),
-                            field_type="list.single_line_text_field"
-                        )
-                        metafields_created.append(f"{mapping.occasions_namespace}.{mapping.occasions_key}")
-                        time.sleep(0.2)
-                    except Exception as e:
-                        logger.warning(f"Failed to create occasions metafield: {str(e)}")
+                    occasions_list = [occ.strip() for occ in matching_csv_row.occasions.split(',') if occ.strip()]
+                    create_metafield_safe("addfea", "occasion", json.dumps(occasions_list), "list.single_line_text_field")
                 
-                # Styling tip from AI
+                # Styling tip - 'addfea' namespace with HTML formatting
                 if styling_tip:
-                    try:
-                        shopify_service.add_metafield_to_product(
-                            product_id=product_id,
-                            namespace=mapping.styling_tip_namespace,
-                            key=mapping.styling_tip_key,
-                            value=styling_tip,
-                            field_type="multi_line_text_field"
-                        )
-                        metafields_created.append(f"{mapping.styling_tip_namespace}.{mapping.styling_tip_key}")
-                        time.sleep(0.2)
-                    except Exception as e:
-                        logger.warning(f"Failed to create styling tip metafield: {str(e)}")
+                    styling_html = f"<ul>\n<li>{styling_tip}</li>\n</ul>"
+                    create_metafield_safe("addfea", "styling_tip", styling_html, "multi_line_text_field")
                 
-                # SEO metafields
-                try:
-                    shopify_service.add_metafield_to_product(
-                        product_id=product_id,
-                        namespace=mapping.seo_title_namespace,
-                        key=mapping.seo_title_key,
-                        value=seo_title,
-                        field_type="string"
-                    )
-                    metafields_created.append(f"{mapping.seo_title_namespace}.{mapping.seo_title_key}")
-                    time.sleep(0.2)
-                except Exception as e:
-                    logger.warning(f"Failed to create SEO title metafield: {str(e)}")
+                # SEO metafields - 'global' namespace
+                create_metafield_safe("global", "title_tag", seo_title, "string")
+                create_metafield_safe("global", "description_tag", seo_description, "string")
                 
-                try:
-                    shopify_service.add_metafield_to_product(
-                        product_id=product_id,
-                        namespace=mapping.seo_description_namespace,
-                        key=mapping.seo_description_key,
-                        value=seo_description,
-                        field_type="string"
-                    )
-                    metafields_created.append(f"{mapping.seo_description_namespace}.{mapping.seo_description_key}")
-                    time.sleep(0.2)
-                except Exception as e:
-                    logger.warning(f"Failed to create SEO description metafield: {str(e)}")
+                # Meta description - 'meta' namespace
+                create_metafield_safe("meta", "description_excerpt", seo_description, "multi_line_text_field")
                 
-                try:
-                    shopify_service.add_metafield_to_product(
-                        product_id=product_id,
-                        namespace=mapping.meta_description_namespace,
-                        key=mapping.meta_description_key,
-                        value=seo_description,
-                        field_type="multi_line_text_field"
-                    )
-                    metafields_created.append(f"{mapping.meta_description_namespace}.{mapping.meta_description_key}")
-                    time.sleep(0.2)
-                except Exception as e:
-                    logger.warning(f"Failed to create meta description metafield: {str(e)}")
+                # Estimate dates - 'meta' namespace
+                create_metafield_safe("meta", "estimateStartDate", "5", "number_integer")
+                create_metafield_safe("meta", "estimateEndDate", "10", "number_integer")
+                
+                logger.info(f"   ✅ Created {len(metafields_created)} metafields")
                 
                 # Process and upload images to Shopify
                 uploaded_images = []
@@ -1022,28 +1049,40 @@ async def create_draft_products_with_enhanced_tags(
                     matching_csv_row.high_resolution_5
                 ]
                 
-                # Filter out empty URLs
-                valid_image_urls = [url for url in image_urls if url and url.strip()]
+                valid_image_urls = []
+                for url in image_urls:
+                    if url and url.strip():
+                        valid_image_urls.append(url)
                 
                 if valid_image_urls:
                     try:
-                        logger.info(f"📸 Uploading {len(valid_image_urls)} images for SKU: {result['product_sku']}")
-                        uploaded_images = shopify_service.add_multiple_images_to_product(
+                        logger.info(f"📸 Processing {len(valid_image_urls)} images for SKU: {result['product_sku']}")
+                        
+                        image_service = ProductImageService(shopify_service.client)
+                        uploaded_images = image_service.add_images_to_product_via_mutation(
                             product_id=product_id,
                             image_urls=valid_image_urls,
                             title=title
                         )
                         
                         successful_uploads = sum(1 for img in uploaded_images if img['success'])
-                        logger.info(f"✓ Uploaded {successful_uploads}/{len(valid_image_urls)} images for SKU: {result['product_sku']}")
+                        logger.info(f"✓ Successfully uploaded {successful_uploads}/{len(valid_image_urls)} images")
+                        
+                        if successful_uploads < len(valid_image_urls):
+                            failed_images = [img for img in uploaded_images if not img['success']]
+                            logger.warning(f"⚠️  {len(failed_images)} images failed:")
+                            for failed_img in failed_images:
+                                logger.warning(f"   - Position {failed_img.get('position')}: {failed_img.get('error')}")
                         
                     except Exception as e:
-                        logger.warning(f"Failed to upload images for SKU {result['product_sku']}: {str(e)}")
+                        logger.error(f"Failed to upload images: {str(e)}", exc_info=True)
                         uploaded_images = [{
                             'success': False,
                             'error': str(e),
                             'url': url
                         } for url in valid_image_urls]
+                else:
+                    logger.info(f"⚠️  No image URLs found for SKU {result['product_sku']}")
                 
                 # Comprehensive result tracking
                 shopify_results.append({
@@ -1054,8 +1093,9 @@ async def create_draft_products_with_enhanced_tags(
                     'product_handle': created_product.get('handle'),
                     'product_title': title,
                     'status': 'draft_created',
+                    'variant_update_success': variant_update_success,
                     'enhanced_tags_count': len(enhanced_tags),
-                    'enhanced_tags_sample': enhanced_tags[:15],  # Show first 15 tags as sample
+                    'enhanced_tags_sample': enhanced_tags[:15],
                     'metafields_created': metafields_created,
                     'images_uploaded': uploaded_images,
                     'total_images': len(valid_image_urls),
@@ -1091,7 +1131,6 @@ async def create_draft_products_with_enhanced_tags(
         logger.info(f"   📸 {total_images_uploaded} images uploaded")
         logger.info(f"   🏷️ {total_metafields_created} metafields created")
         
-        # Success summary
         success_summary = {
             "products_created": shopify_success_count,
             "total_attempted": len(shopify_results),
@@ -1114,22 +1153,14 @@ async def create_draft_products_with_enhanced_tags(
             "content_generation": {
                 "total_processed": len(generated_results),
                 "successful": success_count,
-                "failed": len(generated_results) - success_count,
-                "ai_quality_metrics": {
-                    "avg_title_length": sum(len(r.get('generated_output', {}).get('action_input', {}).get('title', '')) for r in generated_results if r['success']) // max(success_count, 1),
-                    "avg_description_length": sum(len(r.get('generated_output', {}).get('action_input', {}).get('description', '')) for r in generated_results if r['success']) // max(success_count, 1)
-                }
+                "failed": len(generated_results) - success_count
             },
             "shopify_creation": {
                 "total_processed": len(shopify_results),
                 "successful": shopify_success_count,
                 "failed": len(shopify_results) - shopify_success_count,
                 "total_images_uploaded": total_images_uploaded,
-                "total_metafields_created": total_metafields_created,
-                "enhanced_tags_info": {
-                    "avg_tags_per_product": sum(r.get('enhanced_tags_count', 0) for r in shopify_results if r['success']) // max(shopify_success_count, 1),
-                    "tag_categories": ["price_range", "availability", "marketing", "category", "style", "color", "finish", "components", "occasions", "seo"]
-                }
+                "total_metafields_created": total_metafields_created
             },
             "detailed_results": shopify_results,
             "errors": errors if errors else None

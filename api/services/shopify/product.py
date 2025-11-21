@@ -494,6 +494,44 @@ class ShopifyProductService:
                 variables['query'] = "status:active"
         
         return self.client.execute_query(query, variables)
+    
+    def get_product_with_variant(self, product_id: str) -> Dict[str, Any]:
+        """
+        Get product with its default variant immediately after creation
+        
+        Args:
+            product_id: Shopify product ID
+            
+        Returns:
+            Product data with variant information
+        """
+        if not product_id.startswith('gid://shopify/Product/'):
+            product_id = f"gid://shopify/Product/{product_id}"
+        
+        query = """
+        query getProductWithVariant($id: ID!) {
+            product(id: $id) {
+                id
+                title
+                handle
+                variants(first: 1) {
+                    edges {
+                        node {
+                            id
+                            title
+                            sku
+                            price
+                            barcode
+                            inventoryQuantity
+                        }
+                    }
+                }
+            }
+        }
+        """
+        
+        variables = {'id': product_id}
+        return self.client.execute_query(query, variables)    
 
     def get_product_by_id(self, product_id: str) -> Dict[str, Any]:
         """Get a single product by ID with basic details."""

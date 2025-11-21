@@ -42,7 +42,7 @@ class ShopifyMetafieldService:
         """
         
         variables = {'metafields': metafields}
-        return self.execute_query(mutation, variables)
+        return self.client.execute_query(mutation, variables)  
 
     def delete_metafield_by_key(self, product_id: str, namespace: str, key: str) -> Dict[str, Any]:
         """Delete a specific metafield by namespace and key."""
