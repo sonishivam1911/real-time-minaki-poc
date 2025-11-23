@@ -12,7 +12,7 @@ import logging
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage
 from agent.output_parser import ActionParser
-from agent.product_writer.visual_analysis_prompt import get_enhanced_visual_analysis_prompt
+from api.agent.product_writer.prompts.visual_analysis_prompt import get_enhanced_visual_analysis_prompt
 
 logger = logging.getLogger(__name__)
 

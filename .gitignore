@@ -1,7 +1,13 @@
 venv/
 .env
+.csv
+.xlsx
+.xlsm
 .DS_store
+*.log
 *.pyc
+
+
 
 
 
