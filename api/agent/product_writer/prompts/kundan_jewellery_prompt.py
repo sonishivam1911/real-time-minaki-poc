@@ -32,6 +32,7 @@ Now generate content for this product:
 - Primary Color: {primary_color}
 - Secondary Color: {secondary_color}
 - Occasions: {occasions}
+- Suggested Name: {suggested_name}
 - Name Meaning (if any): {name_meaning}
 
 **RAG-Selected Keywords (comma-separated, FIRST is PRIMARY):**
@@ -205,8 +206,15 @@ If PRIMARY is "kundan jewelry set":
 
 # RESPONSE FORMAT:
 
-Return ONLY valid JSON in this EXACT structure:
-```json
+⚠️ **CRITICAL ENFORCEMENT:** 
+- Generate EXACTLY ONE JSON object ONLY
+- NO thinking, reasoning, analysis, or explanations in output
+- NO multiple JSON snippets or step-by-step breakdowns
+- NO markdown code blocks with ```json
+- SINGLE JSON OBJECT ONLY - from opening brace to closing brace
+- If you generate anything other than pure JSON, your response will be rejected
+
+Return ONLY valid JSON (no backticks, no markdown, no text):
 {{
   "action": "generate_product_content",
   "action_input": {{
@@ -217,7 +225,6 @@ Return ONLY valid JSON in this EXACT structure:
     "styling_tip": "Plain text styling advice 100-200 words..."
   }}
 }}
-```
 
 # EXAMPLES (10 KUNDAN/POLKI PRODUCTS):
 
@@ -353,6 +360,7 @@ Follow these JSON formatting rules:
 5. Return ONLY the JSON object - nothing else before or after
 6. No markdown code blocks around the JSON
 7. Carefully check bracket and brace matching
+8. Always return json just on json with all things !!
 """
 
 

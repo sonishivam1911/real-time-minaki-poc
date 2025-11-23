@@ -273,8 +273,8 @@ class ActionParser:
         Returns:
             Dictionary with action and action_input keys
         """
-        # Default response structure
-        response = {"action": "Final Answer", "action_input": ""}
+        # Default response structure - ALWAYS return dict for action_input
+        response = {"action": "Final Answer", "action_input": {}}
 
         try:
             # Look for JSON in triple backticks first
@@ -289,37 +289,55 @@ class ActionParser:
                     if "action" in parsed_json:
                         response["action"] = parsed_json["action"]
                     if "action_input" in parsed_json:
-                        response["action_input"] = parsed_json["action_input"]
+                        action_input = parsed_json["action_input"]
+                        # Ensure action_input is always a dict
+                        if not isinstance(action_input, dict):
+                            action_input = {"value": str(action_input)} if action_input else {}
+                        response["action_input"] = action_input
                     return response
 
-            # Look for any JSON object in the output
-            json_match = re.search(
-                r"(\{[^{}]*\{[^}]*\}[^{}]*\}|\{[^{}]+\})", llm_output, re.DOTALL
-            )
-            if json_match:
-                json_str = json_match.group(1)
-                print(f"[DEBUG] Found JSON object, length: {len(json_str)}")
-                parsed_json = self.safe_json_parse(json_str)
+            # Look for complete JSON object by finding matching braces
+            # This handles nested arrays, objects, etc.
+            start_idx = llm_output.find('{')
+            if start_idx != -1:
+                brace_count = 0
+                end_idx = -1
+                
+                for i in range(start_idx, len(llm_output)):
+                    if llm_output[i] == '{':
+                        brace_count += 1
+                    elif llm_output[i] == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            end_idx = i + 1
+                            break
+                
+                if end_idx != -1:
+                    json_str = llm_output[start_idx:end_idx]
+                    print(f"[DEBUG] Found JSON object, length: {len(json_str)}")
+                    parsed_json = self.safe_json_parse(json_str)
 
-                if parsed_json and isinstance(parsed_json, dict):
-                    if "action" in parsed_json:
-                        response["action"] = parsed_json["action"]
-                    if "action_input" in parsed_json:
-                        response["action_input"] = parsed_json["action_input"]
-                    return response
+                    if parsed_json and isinstance(parsed_json, dict):
+                        if "action" in parsed_json:
+                            response["action"] = parsed_json["action"]
+                        if "action_input" in parsed_json:
+                            action_input = parsed_json["action_input"]
+                            # Ensure action_input is always a dict
+                            if not isinstance(action_input, dict):
+                                action_input = {"value": str(action_input)} if action_input else {}
+                            response["action_input"] = action_input
+                        return response
 
             # Fallback: extract action from text patterns
             action_match = re.search(r'"?action"?\s*[:=]\s*"?([^"\']+)"?', llm_output)
             if action_match:
                 response["action"] = action_match.group(1).strip()
-            else:
-                response["action"] = "item_type"
-                response["action_input"] = {}
+            # action_input stays as empty dict {}
 
         except Exception as e:
             print(f"[DEBUG] Exception in parse_llm_output: {e}")
             response["action"] = "Final Answer"
-            response["action_input"] = f"Failed to parse LLM output: {str(e)}"
+            response["action_input"] = {"error": str(e)}
 
         return response
 
