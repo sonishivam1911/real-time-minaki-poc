@@ -6,14 +6,26 @@ from langgraph.graph import StateGraph, END
 from langsmith import traceable
 
 from ...utils.schema.product_writer_agent import AgentState, ProductOutput, ActionInput
-from .kundan_jewellery_prompt import PRODUCT_CONTENT_PROMPT
-
+from .prompts.kundan_jewellery_prompt import kundan_jewelry_prompt
+from .prompts.name_search_query_prompt import search_query_prompt
+from .prompts.name_reflection_prompt import reflection_prompt
+from .prompts.name_parser_prompt import name_parser_prompt
+from ...utils.serper_search import search_serper
 
 class GraphState(TypedDict):
-    """State for LangGraph workflow"""
+    # Existing fields
     product_input: dict
     product_output: dict | None
     error: str | None
+    
+    jewelry_type: str  # "kundan" or "crystal_ad"
+    primary_color: str  # extracted from product_input
+    search_query: str | None
+    search_results: str | None  # raw text from Serper
+    name_pool: list[dict] | None  # [{"name": "X", "meaning": "Y"}]
+    selected_name: dict | None  # {"name": "X", "meaning": "Y"}
+    reflection_passed: bool  # flag for conditional routing
+    retry_count: int  # prevent infinite loops
 
 
 # Initialize Groq LLM
@@ -35,7 +47,7 @@ def generate_content_node(state: GraphState) -> GraphState:
         product_data = state["product_input"]
         
         # Format prompt
-        messages = PRODUCT_CONTENT_PROMPT.format_messages(**product_data)
+        messages = kundan_jewelry_prompt.format_messages(**product_data)
         
         # Call LLM
         response = llm.invoke(messages)
@@ -72,7 +84,175 @@ def generate_content_node(state: GraphState) -> GraphState:
         state["error"] = error_msg
         state["product_output"] = None
         return state
+    
+    
 
+
+@traceable(name="search_query_generator_node", run_type="chain")
+def search_query_generator_node(state: GraphState) -> GraphState:
+    """
+    Generate optimal search query based on product attributes
+    """
+    try:
+        product_input = state["product_input"]
+        
+        # Extract needed fields
+        jewelry_type = "crystal_ad" if "crystal" in product_input.get("jewelry_line", "").lower() else "kundan"
+        primary_color = product_input.get("primary_color", "")
+        secondary_color = product_input.get("secondary_color", "")
+        category = product_input.get("category", "")
+        
+        # Format prompt
+        messages = search_query_prompt.format_messages(
+            jewelry_type=jewelry_type,
+            primary_color=primary_color,
+            secondary_color=secondary_color,
+            category=category
+        )
+        
+        # Call LLM
+        response = llm.invoke(messages)
+        search_query = response.content.strip()
+        
+        # Update state
+        state["jewelry_type"] = jewelry_type
+        state["primary_color"] = primary_color
+        state["search_query"] = search_query
+        state["retry_count"] = state.get("retry_count", 0)
+        
+        return state
+        
+    except Exception as e:
+        state["error"] = f"Error generating search query: {str(e)}"
+        return state   
+    
+    
+
+
+@traceable(name="serper_search_node", run_type="chain")
+def serper_search_node(state: GraphState) -> GraphState:
+    """
+    Call Serper API with generated query
+    """
+    try:
+        search_query = state.get("search_query")
+        
+        if not search_query:
+            state["error"] = "No search query provided"
+            return state
+        
+        # Call Serper
+        search_results = search_serper(search_query)
+        
+        # Update state
+        state["search_results"] = search_results
+        state["error"] = None
+        
+        return state
+        
+    except Exception as e:
+        state["error"] = f"Serper search failed: {str(e)}"
+        state["search_results"] = None
+        return state
+    
+@traceable(name="reflection_node", run_type="chain")
+def reflection_node(state: GraphState) -> GraphState:
+    """
+    Validate we have enough names for all products
+    """
+    try:
+        search_results = state.get("search_results")
+        required_names = state.get("required_names", 10)  # Default buffer
+        
+        if not search_results:
+            state["reflection_passed"] = False
+            state["error"] = "No search results"
+            return state
+        
+        # Format prompt
+        messages = reflection_prompt.format_messages(
+            required_names=required_names,
+            search_results=search_results[:3000]
+        )
+        
+        # Call LLM
+        response = llm.invoke(messages)
+        content = response.content.strip()
+        
+        # Parse JSON
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+        
+        result = json.loads(content)
+        action_input = result.get("action_input", {})
+        
+        passed = action_input.get("passed", False)
+        count = action_input.get("extracted_names_count", 0)
+        
+        state["reflection_passed"] = passed
+        
+        if not passed:
+            state["retry_count"] = state.get("retry_count", 0) + 1
+            print(f"❌ Reflection FAILED - need {required_names}, found {count}")
+        else:
+            print(f"✅ Reflection PASSED - {count}/{required_names} names available")
+        
+        return state
+        
+    except Exception as e:
+        state["reflection_passed"] = False
+        state["error"] = f"Reflection error: {str(e)}"
+        return state    
+
+
+
+
+@traceable(name="name_parser_node", run_type="chain")
+def name_parser_node(state: GraphState) -> GraphState:
+    """
+    Extract name pool from search results
+    """
+    try:
+        search_results = state.get("search_results")
+        
+        # Format prompt
+        messages = name_parser_prompt.format_messages(
+            search_results=search_results[:4000]
+        )
+        
+        # Call LLM
+        response = llm.invoke(messages)
+        content = response.content.strip()
+        
+        # Parse JSON
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+        
+        result = json.loads(content)
+        action_input = result.get("action_input", {})
+        name_pool = action_input.get("names", [])
+        
+        if len(name_pool) < 5:
+            state["error"] = f"Only extracted {len(name_pool)} names"
+            state["reflection_passed"] = False
+            return state
+        
+        print(f"✅ Extracted {len(name_pool)} names to pool")
+        
+        # Update state
+        state["name_pool"] = name_pool
+        state["error"] = None
+        
+        return state
+        
+    except Exception as e:
+        state["error"] = f"Parser error: {str(e)}"
+        state["reflection_passed"] = False
+        return state
 
 # Build LangGraph workflow
 def create_workflow() -> StateGraph:
