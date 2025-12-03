@@ -29,7 +29,7 @@ async def get_product_metafields(
     - **key**: Optional key filter (requires namespace)
     """
     try:
-        result = connector.get_product_metafields(product_id, namespace, key)
+        result = connector.get_complete_product_with_metafields(product_id)
         
         if not result.get('data', {}).get('product'):
             return MetafieldResponse(

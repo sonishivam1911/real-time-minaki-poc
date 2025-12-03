@@ -154,34 +154,29 @@ STEP 4: GENERATE SEARCH QUERY
 **GOOD QUERY EXAMPLES:**
 
 KUNDAN (Indian/Arabic/Muslim):
-- "Mughal begum names meanings 16th century"
-- "Rajput princess names royal etymology"
-- "Ottoman sultana names Arabic meanings"
-- "Nawab Awadh royal women names"
-- "Safavid Persian queen names meanings"
+- "16th century Mughal queen and important female mughal names meaning [place the primary color here]"
+- "12th Century Rajput princess names royal meaning [place the primary color here]"
+- "18th century Ottoman sultana names Arabic meaning [place the primary color here]"
+- "Nawab Awadh royal women name meanings [place the primary color here]"
+- "Safavid Persian queen names meaning [place the primary color here]"
 
 CRYSTAL (European):
-- "Tudor princess names meanings etymology"
-- "French Bourbon queen names royal"
-- "Habsburg empress names meanings"
-- "Victorian royal women names British"
-- "Russian Romanov princess names meanings"
+- "Tudor princess names meaning royal [place the primary color here]"
+- "13th Century French queen/royals names meaning [place the primary color here]"
+- "Habsburg empress names meanings [place the primary color here]"
+- "Victorian royal women names British [place the primary color here]"
+- "Russian Romanov princess names meanings [place the primary color here]"
+- "9th Century Byzantine empress names meaning [place the primary color here]"
+- "Louis XIV France royal queen names meanings [place the primary color here]"
 
 TEMPLE (Hindu):
-- "Durga names meanings Sanskrit"
-- "Lakshmi epithets goddess names"
-- "Saraswati names meanings common Sanskrit"
-- "Meenakshi goddess Tamil names meanings"
-- "Parvati names Sanskrit common meanings"
+- "Durga's lesser name know names meaning [place the primary color here]"
+- "Lakshmi goddess relativey unknown names meaning [place the primary color here]"
+- "Saraswati relativey unknown sanskrit names meaning [place the primary color here]"
+- "Meenakshi goddess relativey unknown sanskrit names meanings [place the primary color here]"
+- "Parvati relativey unknown names meaning [place the primary color here]"
 
-**QUERY RULES:**
-- 5-8 words maximum
-- Include: dynasty/deity + royal title/goddess + names + meanings/etymology
-- For Temple: search BOTH Sanskrit AND common/popular names
-- Keep elegant and focused
-- NEVER mix cultures in query
 
----
 
 OUTPUT FORMAT:
 
@@ -202,19 +197,6 @@ Then, output ONLY this JSON structure:
 3. No multiple JSONs
 4. No explanations outside the thinking line
 5. NEVER mix cultures (Crystal=European ONLY, Kundan=Indian/Arabic/Muslim ONLY, Temple=Hindu ONLY)
-
----
-
-EXAMPLE FULL OUTPUT:
-
-Thinking: "Input=crystal_ad, Detected=CRYSTAL→European✓, Roll=12, Era=17th-late, Kingdoms: Habsburg/England, Pick=Habsburg, Color=Green→emerald✓, Focus=Austrian empress green-themed names"
-
-{{
-  "action": "generate_search_query",
-  "action_input": {{
-    "query": "Habsburg empress names meanings Austrian royal"
-  }}
-}}
 """
 
 search_query_prompt = ChatPromptTemplate.from_messages([

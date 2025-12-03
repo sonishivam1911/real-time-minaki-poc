@@ -678,43 +678,80 @@ class ShopifyGraphQLConnector:
             raise
 
     def get_product_metafields(self, product_id: str, namespace: Optional[str] = None, 
-                             key: Optional[str] = None) -> Dict[str, Any]:
-        """Get metafields for a product with optional filtering."""
+                            key: Optional[str] = None) -> Dict[str, Any]:
+        """Get all metafields for a product with pagination and optional filtering."""
         if not product_id.startswith('gid://shopify/Product/'):
             product_id = f"gid://shopify/Product/{product_id}"
         
-        metafields_args = "first: 50"
-        if namespace and key:
-            metafields_args = f'first: 50, namespace: "{namespace}", key: "{key}"'
-        elif namespace:
-            metafields_args = f'first: 50, namespace: "{namespace}"'
+        all_metafields = []
+        has_next_page = True
+        cursor = None
         
-        query = f"""
-        query getProductMetafields($id: ID!) {{
-            product(id: $id) {{
-                id
-                title
-                metafields({metafields_args}) {{
-                    edges {{
-                        node {{
-                            id
-                            namespace
-                            key
-                            value
-                            type
-                            description
-                            createdAt
-                            updatedAt
+        while has_next_page:
+            # Build metafields arguments with pagination
+            metafields_args = "first: 50"
+            if cursor:
+                metafields_args += f', after: "{cursor}"'
+            if namespace and key:
+                metafields_args += f', namespace: "{namespace}", key: "{key}"'
+            elif namespace:
+                metafields_args += f', namespace: "{namespace}"'
+            
+            query = f"""
+            query getProductMetafields($id: ID!) {{
+                product(id: $id) {{
+                    id
+                    title
+                    metafields({metafields_args}) {{
+                        edges {{
+                            node {{
+                                id
+                                namespace
+                                key
+                                value
+                                type
+                                description
+                                createdAt
+                                updatedAt
+                            }}
+                        }}
+                        pageInfo {{
+                            hasNextPage
+                            endCursor
                         }}
                     }}
                 }}
             }}
-        }}
-        """
+            """
+            
+            variables = {'id': product_id}
+            response = self.execute_query(query, variables)
+            
+            # Extract metafields from response
+            if response and 'data' in response and response['data']['product']:
+                metafields_data = response['data']['product']['metafields']
+                all_metafields.extend(metafields_data['edges'])
+                
+                # Check pagination
+                page_info = metafields_data['pageInfo']
+                has_next_page = page_info['hasNextPage']
+                cursor = page_info['endCursor']
+            else:
+                has_next_page = False
         
-        variables = {'id': product_id}
-        return self.execute_query(query, variables)
-    
+        # Return in the same format as original
+        return {
+            'data': {
+                'product': {
+                    'id': product_id,
+                    'title': response['data']['product']['title'] if response and 'data' in response else None,
+                    'metafields': {
+                        'edges': all_metafields
+                    }
+                }
+            }
+        }
+        
 
 
 
