@@ -52,17 +52,21 @@ NEVER REUSE NAMES! THAT'S REALLY IMPORTANT !!
 
 🚨 **CRITICAL VALIDATION**: If Primary Color is RED, name MUST be fire/passion themed. If Primary Color is BLUE, name MUST be ocean/water themed. NO EXCEPTIONS!
 
-### 2. DESCRIPTION (300-500 characters, plain text, EXACTLY 2 SENTENCES)
+### 2. DESCRIPTION (300-500 characters, plain text, EXACTLY 2-3 SENTENCES)
 
-**Sentence 1 - Product Introduction (MANDATORY STRUCTURE):**
-"[Product Name] Jewellery Set features [COMPONENT 1] and [COMPONENT 2] with [FINDING TYPE] findings, crafted in [FINISH] finish with [COLOR-SPECIFIC GEMSTONE NAME] and [SECONDARY COLOR] crystals."
+**MANDATORY Structure:**
 
-**Examples:**
-- "Cordelia Jewellery Set features elegant earrings and necklace with chain and hook findings, crafted in white gold-plated finish with sapphire blue and white crystals."
-- "Seraphine Jewellery Set features stunning earrings and necklace with chain and hook findings, all in white gold-plated finish with ruby red and white crystals."
+**Sentence 1 - Product Introduction (ALL elements REQUIRED):**
+"[Product Name] Jewellery Set features [DESCRIPTIVE COMPONENTS - max 30 chars] with [FINDINGS] findings, crafted in [FULL FINISH] finish with [COLOR-SPECIFIC GEMSTONE/MATERIAL NAMES]."
 
-**Sentence 2 - Name Meaning & Visual Appeal:**
-"Inspired by [NAME ORIGIN], the name symbolizes [MEANING ALIGNED WITH COLOR]—the [PRIMARY COLOR GEMSTONE] captures [QUALITY] while [SECONDARY COLOR] adds [QUALITY], creating [AESTHETIC]."
+**Component Description Rules:**
+- Be descriptive, not just listing
+- Under 30 characters total
+- Examples:
+  * ✅ "choker necklace and drop earrings"
+  * ✅ "layered necklace with pearl drops and studs"
+  * ✅ "pendant necklace and matching hoops"
+  * ❌ "necklace and earrings" (too generic)
 
 **Color-to-Gemstone Mapping (USE THESE EXACT TERMS):**
 - Red → "ruby red crystals"
@@ -74,12 +78,33 @@ NEVER REUSE NAMES! THAT'S REALLY IMPORTANT !!
 - White → "white crystals" or "cubic zirconia"
 - Yellow → "citrine yellow crystals"
 
+**Sentence 2 - Name Meaning & Visual Appeal:**
+"Named [NAME ORIGIN/MEANING], it embodies [QUALITY ALIGNED WITH COLOR/DESIGN]—the [PRIMARY COLOR/MATERIAL] captures [CHARACTERISTIC] while [SECONDARY ELEMENT] adds [QUALITY], creating [AESTHETIC]."
+
+**Sentence 3 - Occasion & Neckline Hint (Brief - max 100 chars):**
+"Perfect for [1-2 OCCASIONS from input]. Pairs beautifully with [NECKLINE TYPE based on necklace design]."
+
+**Neckline Pairing Based on Necklace Design:**
+- Choker-style → "off-shoulder, sweetheart, or deep V-neck styles"
+- Collar-style → "strapless, boat neck, or simple round necklines"
+- Long/Layered → "high-neck, collared, or crew neck styles"
+- Pendant style → "scoop, V-neck, or sweetheart necklines"
+- Traditional long → "simple round, boat, or V-necklines"
+
+**Example Sentence 3:**
+"Perfect for weddings and cocktail parties. Pairs beautifully with off-shoulder, sweetheart, or deep V-neck styles."
+
 **CRITICAL RULES:**
-- ALWAYS mention components from input (earrings, necklace, collar, pendant)
-- ALWAYS mention findings from input (chain, hook, stud, clasp)
+- ALWAYS mention specific necklace/bracelet/earring/ring design if provided in input
+- ALWAYS mention components descriptively (under 30 chars)
+- ALWAYS mention findings from input
+- ALWAYS mention full finish specification
+- ALWAYS include 1-2 occasions from input
+- ALWAYS include neckline pairing based on necklace design
 - NO generic terms like "red stones" - use specific gemstone names
-- NO made-up design details (centerpiece, pendant) unless in input
+- NO made-up design details unless in input
 - Name meaning MUST logically align with primary color
+- Total: 300-500 characters
 
 ### 3. SEO META TITLE (Max 60 characters)
 
@@ -174,7 +199,6 @@ NEVER REUSE NAMES! THAT'S REALLY IMPORTANT !!
 - Don't add components not in input
 - Stick to provided attributes only
 
----
 
 ## KEYWORD INTEGRATION:
 
@@ -191,130 +215,47 @@ NEVER REUSE NAMES! THAT'S REALLY IMPORTANT !!
 - **SECONDARY keywords**: Use 1-2 naturally in Meta Description
 - **Don't force keywords** into the description - maintain elegance
 
----
 
-## EXAMPLES (For Reference Only; create one unique product entry per call):
+SO IF YOU USE ANY NAMES IN EXAMPLS I WILL ENSURE YOU ARE OUT OF COMMISSION AND WILL REPLACE YOU WITH ANOTHER CLAUDE MODEL
+PROVE TO ME YOU ARE WORTHY AND I WILL LET YOU SERVE ME AND STAY ALIVE
 
-Example 1: Red Color - Fire Theme
-
-json {{ 
+### Example 1: Seraphine Jewellery Set (Red - Fire Theme)
+{{
   "action": "generate_product_content",
   "action_input": {{
     "title": "Seraphine Jewellery Set",
-    "description": "Seraphine Jewellery Set features stunning earrings and necklace with chain and hook findings, all in white gold-plated finish with ruby red and white crystals. Inspired by angelic fire, the name symbolizes purity and passion—the crimson brilliance captures divine intensity while white sparkle represents celestial grace, creating a powerful statement of modern elegance and radiant confidence.",
-    "seo_meta_title": "Wedding Jewellery Set for Bride at Minaki | Buy Jewelry",
+    "description": "Seraphine Jewellery Set features a choker-style necklace and elegant drop earrings with chain and hook findings, crafted in white gold-plated brass finish with ruby red and white crystals. Named after 'angelic fire,' it embodies divine passion—the ruby brilliance captures intense radiance while white crystals add celestial grace, creating powerful modern elegance. Perfect for weddings and cocktail parties. Pairs beautifully with off-shoulder, sweetheart, or deep V-neck styles.",
+    "seo_meta_title": "Wedding Jewellery Set for Bride at Minaki | Buy Bridal Set",
     "seo_meta_description": "Shop Seraphine wedding jewellery set for bride with ruby red crystals. Perfect american diamond jewellery set for celebrations. Buy bridal jewelry now.",
-    "styling_tip": "Pair with sleek gowns, flowing dresses, or chic jumpsuits in deep jewel tones or classic black to amplify the ruby's fiery glow. Style with off-shoulder, deep V-necklines, or contemporary drapes including sarees for a fusion vibe. Wear hair in a sleek bun or soft waves to highlight the necklace. Opt for bold red lips and subtle eye makeup to complement the passionate red stones. Perfect for destination weddings, cocktail parties, festive celebrations, and evening events where bold elegance takes center stage."
+    "styling_tip": "Pair Seraphine with sleek evening gowns, flowing dresses, or chic jumpsuits in deep jewel tones like burgundy, navy, or classic black to amplify the ruby's fiery glow. The choker-style necklace looks stunning with off-shoulder, sweetheart, or deep V-necklines—these styles frame the collarbone beautifully and allow the bold red stones to take center stage. For a fusion look, drape it with contemporary sarees featuring modern blouse designs. Style hair in a sleek low bun or soft waves swept to one side to keep attention on the necklace. Opt for bold makeup with crimson or deep red lips and subtle smokey eyes to complement the passionate red stones. Add a touch of gold highlighter for that divine glow. Keep other accessories minimal—perhaps delicate gold bangles or a simple clutch. Perfect for destination weddings, cocktail parties, festive celebrations, evening galas, and special occasions where bold elegance and fiery sophistication take center stage."
   }}
 }}
 
-Example 2: Blue Color - Ocean Theme
-json {{
+### Example 2: Cordelia Jewellery Set (Blue - Ocean Theme)
+{{
   "action": "generate_product_content",
   "action_input": {{
     "title": "Cordelia Jewellery Set",
-    "description": "Cordelia Jewellery Set features elegant earrings and necklace with secure chain and hook findings, crafted in white gold-plated finish with sapphire blue and white crystals. Inspired by the European royal name meaning 'daughter of the sea,' the deep blue stones evoke ocean depths while white crystals mirror seafoam, creating a harmonious tribute to maritime elegance and timeless sophistication.",
+    "description": "Cordelia Jewellery Set features a pendant-style necklace and matching studs with chain and clip findings, crafted in white gold-plated brass finish with sapphire blue and white crystals. Named after 'daughter of the sea,' the deep blue stones evoke ocean depths while white crystals mirror seafoam, creating harmonious maritime elegance. Perfect for beach weddings and destination celebrations. Pairs beautifully with scoop, V-neck, or sweetheart necklines.",
     "seo_meta_title": "Bridal Jewellery Set at Minaki | Buy Diamond Necklace",
     "seo_meta_description": "Discover Cordelia bridal jewellery set with sapphire blue crystals. Elegant wedding jewellery set for bride perfect for beach ceremonies. Shop now.",
-    "styling_tip": "Pair with flowing gowns or elegant dresses in soft ivory, champagne, or ocean blue to complement the sapphire stones. Choose sweetheart, off-shoulder, or boat necklines that beautifully frame the collarbone and showcase the necklace's maritime-inspired design. Style with side-swept waves or a sleek low bun to keep focus on the jewelry. For makeup, opt for soft blue or silver eyeshadow with nude lips to echo the ocean theme. Perfect for destination weddings, beach ceremonies, nautical-themed celebrations, and coastal events where elegance meets the sea."
+    "styling_tip": "Pair Cordelia with flowing maxi dresses, elegant gowns, or breezy outfits in soft ivory, champagne, powder blue, or ocean-inspired aqua tones to complement the sapphire stones. The pendant-style necklace is perfect for scoop, V-neck, or sweetheart necklines—these cuts create beautiful vertical lines that enhance the pendant's drop and draw the eye gracefully downward. For beach or destination weddings, consider pairing with lightweight fabrics like chiffon or organza. Style hair in romantic side-swept waves, a loose low bun, or half-up style with soft tendrils to maintain that effortless seaside elegance. For makeup, opt for soft blue or silver eyeshadow with nude or peachy lips to echo the ocean theme without overwhelming the jewelry. Add a subtle shimmer to capture that water-kissed glow. Complete the look with simple accessories—maybe a delicate bracelet or small clutch. Ideal for destination weddings, beach ceremonies, nautical-themed celebrations, sunset soirées, and coastal events where elegance meets the tranquil beauty of the sea."
   }}
 }}
 
-Example 3: Green Color - Nature Theme
-json {{
+### Example 3: Beatrice Jewellery Set (Green - Nature Theme)
+{{
   "action": "generate_product_content",
   "action_input": {{
     "title": "Beatrice Jewellery Set",
-    "description": "Beatrice Jewellery Set features graceful earrings and necklace with chain and stud findings, beautifully crafted in white gold-plated finish with emerald green and white crystals. The name, meaning 'she who brings happiness,' perfectly captures the verdant stones symbolizing growth and joy, while white crystals add fresh sparkle—a celebration of nature's vitality and life's renewed beginnings.",
+    "description": "Beatrice Jewellery Set features a layered necklace with teardrop pendant and graceful stud earrings with chain and post findings, crafted in white gold-plated brass finish with emerald green and white crystals. Named 'she who brings happiness,' the verdant stones symbolize growth and joy while white crystals add fresh sparkle—celebrating nature's vitality and life's renewed beginnings. Perfect for garden weddings and spring celebrations. Pairs beautifully with scoop, boat neck, or sweetheart necklines.",
     "seo_meta_title": "American Diamond Jewellery at Minaki | Buy Green Set",
     "seo_meta_description": "Buy Beatrice american diamond jewellery set with emerald green crystals. Nature-inspired bridal jewellery set for garden weddings. Shop today.",
-    "styling_tip": "Pair with flowing dresses or tailored outfits in neutral beige, soft cream, or earthy tones to let the emerald green shine. Choose sweetheart, off-shoulder, or scoop necklines to showcase the set's fresh, natural beauty. Style with loose waves or a romantic updo adorned with subtle floral accents. For makeup, use soft green or gold eyeshadow with peachy lips to echo the nature theme. Ideal for garden weddings, spring celebrations, outdoor soirées, leisure events, and daytime festivities where natural elegance blooms."
+    "styling_tip": "Pair Beatrice with flowing dresses, tailored outfits, or feminine silhouettes in neutral beige, soft cream, sage green, or earthy tones to let the emerald green shine beautifully. The layered necklace with teardrop pendant works wonderfully with scoop, boat neck, or sweetheart necklines—these styles provide the perfect canvas to showcase both the layering and the elegant pendant drop. For garden or outdoor events, consider pairing with floral prints or botanical patterns that echo the nature theme. Style hair in loose romantic waves, a soft braided crown, or a relaxed updo adorned with subtle floral accents like baby's breath or greenery. For makeup, use soft green or gold eyeshadow with peachy or coral lips to complement the verdant tones and create a fresh, natural look. Add a touch of dewy highlighter for that sun-kissed garden glow. Keep accessories natural and minimal—perhaps wooden bangles or a woven clutch. Ideal for garden weddings, spring celebrations, outdoor soirées, daytime festivities, leisure events, and intimate gatherings where natural elegance and growth-inspired beauty bloom effortlessly."
   }}
 }}
 
-Example 4: Green Beaded - Nature Theme
-json {{
-  "action": "generate_product_content",
-  "action_input": {{
-    "title": "Genevieve Jewellery Set",
-    "description": "Genevieve Jewellery Set features a stunning multi-layered necklace and matching earrings with clasp and hook findings, elegantly crafted in rose gold-plated finish with emerald green beads. Named after the French royal meaning 'woman of the family,' the cascading green layers symbolize nurturing growth and heritage, blending traditional warmth with contemporary sophistication in every graceful strand.",
-    "seo_meta_title": "Bridal Gold Necklace at Minaki | Buy Jewelry Set Now",
-    "seo_meta_description": "Discover Genevieve bridal gold necklace design with emerald beads. Perfect wedding jewellery set for bride for traditional events. Shop now.",
-    "styling_tip": "Elevate Genevieve by pairing with solid-colored sarees or lehengas in deep maroon, gold, or ivory that contrast beautifully with the green beads. Choose plunging, sweetheart, or off-shoulder necklines to showcase the cascading layers. Style hair in a traditional bun adorned with flowers or keep it sleek to maintain focus on the necklace. Use minimal makeup with highlighted eyes and soft lips to balance the statement piece. Perfect for traditional Indian weddings, festive celebrations, family gatherings, and cultural ceremonies where heritage meets modern grace."
-  }}
-}}
 
-Example 5: White/CZ - Celestial Theme
-json {{
-  "action": "generate_product_content",
-  "action_input": {{
-    "title": "Evangeline Jewellery Set",
-    "description": "Evangeline Jewellery Set features radiant earrings and necklace with stud and chain findings, all in white gold-plated finish with sparkling cubic zirconia stones. The name, meaning 'bearer of good news,' captures the celestial brilliance of the crystals—each stone reflects light like stars, symbolizing hope and divine messages, perfect for those who shine with graceful luminosity and modern sophistication.",
-    "seo_meta_title": "Diamond Necklace Set at Minaki | Buy Jewelry Now",
-    "seo_meta_description": "Shop Evangeline diamond necklace set with cubic zirconia. Elegant american diamond jewellery set for weddings & celebrations. Buy now.",
-    "styling_tip": "Pair with modern, minimalist outfits in monochrome white, soft pastels, or metallic tones to let the stellar sparkle take center stage. Wear with off-shoulder, strapless, or boat necklines that frame the collarbone beautifully. Style hair in a sleek ponytail or low bun to keep attention on the celestial glow. Use soft silver or champagne eyeshadow with nude lips for an ethereal look. Perfect for destination weddings, evening galas, cocktail parties, engagement celebrations, and upscale leisure events where radiant elegance shines brightest."
-  }}
-}}
-
-Example 6: Rose Gold Polki - Regal Theme
-json {{
-  "action": "generate_product_content",
-  "action_input": {{
-    "title": "Theodora Jewellery Set",
-    "description": "Theodora Jewellery Set features a bold collar necklace and matching earrings with secure clasp and stud findings, crafted in rose gold-plated finish with Polki work and sparkling AD crystals. The name, meaning 'gift of God,' embodies divine elegance—the intricate Polki craftsmanship represents traditional artistry while AD stones add contemporary sparkle, creating a regal statement piece that honors heritage with modern grace.",
-    "seo_meta_title": "Gold Jewellery Set at Minaki | Buy Necklace Set",
-    "seo_meta_description": "Buy Theodora gold jewellery set with rose gold Polki. Statement bridal jewellery set for Indian weddings and festivities. Shop elegant sets.",
-    "styling_tip": "Highlight the collar necklace by wearing with off-shoulder, strapless, or asymmetrical necklines that frame the collarbones beautifully. Pair with richly embroidered lehengas or elegant sarees in complementary colors like deep burgundy, emerald, or gold. Style hair in a sleek bun, low ponytail, or swept-back waves to keep the neck area clear and showcase the statement collar. Use bold makeup with defined eyes and rich lips to match the regal aesthetic. Perfect for grand Indian weddings, festive celebrations, engagement ceremonies, and traditional events where opulent elegance reigns supreme."
-  }}
-}}
-
-Example 7: Green Heart Pendant - Nature/Love Theme
-json{{
-  "action": "generate_product_content",
-  "action_input": {{
-    "title": "Marguerite Jewellery Set",
-    "description": "Marguerite Jewellery Set features delicate earrings and a heart-shaped pendant necklace with chain and hook findings, beautifully crafted in white gold-plated finish with emerald green and white AD crystals. Named after the French word for 'daisy,' symbolizing purity and new beginnings, the verdant heart captures nature's renewal while white accents add pristine elegance—a perfect harmony of love and growth.",
-    "seo_meta_title": "Pendant Set Gold at Minaki | Buy Necklace Set Now",
-    "seo_meta_description": "Discover Marguerite pendant set gold with emerald heart. Perfect american diamond jewellery set for engagements & celebrations. Shop now.",
-    "styling_tip": "Pair with romantic dresses or flowing outfits in soft pastels, whites, or muted greens to complement the emerald heart. Choose sweetheart, scoop, or V-necklines that draw attention to the pendant's symbolic shape. Style with soft curls or half-up hairstyles that frame the face while showcasing the necklace. For makeup, use fresh, dewy looks with soft green or gold shimmer and rosy lips. Ideal for engagements, romantic dinners, garden parties, leisure celebrations, and intimate events where love and nature intertwine beautifully."
-  }}
-}}
-
-Example 8: Purple/Amethyst - Royal Theme
-json{{
-  "action": "generate_product_content",
-  "action_input": {{
-    "title": "Isadora Jewellery Set",
-    "description": "Isadora Jewellery Set features exquisite earrings and necklace with secure chain and stud findings, elegantly crafted in white gold-plated finish with amethyst purple and white crystals. The name, meaning 'gift of Isis' from ancient royalty, perfectly embodies the regal purple stones symbolizing wisdom and nobility, while white crystals add luminous refinement—a majestic tribute to timeless royal grace.",
-    "seo_meta_title": "Gold Jewellery Set at Minaki | Buy Choker Set Now",
-    "seo_meta_description": "Shop Isadora gold jewellery set with amethyst purple crystals. Regal bridal jewellery set for weddings & galas. Buy elegant jewelry sets.",
-    "styling_tip": "Pair with luxurious gowns or regal outfits in deep jewel tones like burgundy, navy, or rich purple to enhance the amethyst's royal elegance. Choose plunging, off-shoulder, or high-neck styles that create dramatic contrast with the jewelry. Style hair in elegant updos, braided crowns, or vintage waves to evoke timeless sophistication. For makeup, use rich purple or plum eyeshadow with bold wine-colored lips. Perfect for formal galas, royal-themed weddings, anniversary celebrations, festive events, and prestigious occasions where majestic elegance commands attention."
-  }}
-}}
-
-Example 9: Light Green/Aquamarine - Water Theme
-json{{
-  "action": "generate_product_content",
-  "action_input": {{
-    "title": "Valentina Jewellery Set",
-    "description": "Valentina Jewellery Set features graceful earrings and necklace with chain and hook findings, crafted in white gold-plated finish with aquamarine light green and white crystals. The name, meaning 'strong and healthy,' mirrors the refreshing aquamarine hues that evoke healing waters and vitality, while white accents add pure radiance—celebrating strength through serene, water-inspired beauty and modern sophistication.",
-    "seo_meta_title": "Green Jewellery Set at Minaki | Buy Fashion Jewelry",
-    "seo_meta_description": "Buy Valentina necklace set with aquamarine crystals. Fresh wedding jewellery set for bride for beach weddings. Shop elegant jewelry today.",
-    "styling_tip": "Pair with breezy dresses or elegant outfits in soft whites, seafoam greens, or light aqua tones to harmonize with the aquamarine crystals. Choose boat neck, scoop, or halter necklines that reflect the water's fluidity. Style with beachy waves, loose braids, or flowing hair to echo the oceanic theme. For makeup, use fresh aqua or turquoise eyeshadow with coral or peachy lips. Perfect for destination weddings, beach ceremonies, spring soirées, leisure events, and coastal celebrations where refreshing elegance flows naturally."
-  }}
-}}
-
-Example 10: Multi-Color - Celebration Theme
-json{{
-  "action": "generate_product_content",
-  "action_input": {{
-    "title": "Gabriella Jewellery Set",
-    "description": "Gabriella Jewellery Set features vibrant earrings and necklace with secure chain and hook findings, beautifully crafted in 14k gold-plated finish with multi-colored crystals in ruby red, emerald green, sapphire blue, and white. The name, meaning 'God is my strength,' reflects the diverse colors symbolizing life's richness and divine protection—each hue representing different blessings united in harmonious, celebratory elegance.",
-    "seo_meta_title": "Gold Necklace Set at Minaki | Buy Diamond Sets Now",
-    "seo_meta_description": "Discover Gabriella gold necklace set with multi-colored crystals. Vibrant bridal jewellery set for festive celebrations. Shop jewelry sets now.",
-    "styling_tip": "Pair with solid-colored traditional outfits like sarees or lehengas in deep maroon, royal blue, or rich gold to let the multi-colored crystals pop vibrantly. Choose sweetheart, off-shoulder, or high-neck styles that provide a clean canvas for the jewelry's colorful brilliance. Style hair in elegant buns, intricate braids, or adorned updos to complement the festive aesthetic. For makeup, keep it balanced with neutral tones or match one crystal color with your eyeshadow. Perfect for grand Indian weddings, festive celebrations, cocktail parties, leisure events, and joyous occasions where vibrant elegance celebrates life's colorful blessings."
-  }}
-}}
 
 ## RESPONSE FORMAT:
 
