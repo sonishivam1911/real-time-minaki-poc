@@ -16,6 +16,14 @@ from controller.shopify.metafield_migration import controller as metafield_migra
 from controller.agent import controller as agent_controller
 from controller.agent import test_controller as agent_test_controller
 from controller.nayka import controller as nykaa_controller
+from controller.billing_system.inventory import controller as inventory_controller
+from controller.billing_system.pricing import controller as pricing_controller
+from controller.billing_system.product import controller as billing_product_controller
+from controller.billing_system.variant import controller as variant_controller
+from controller.billing_system.cart import controller as cart_controller
+from controller.billing_system.checkout import controller as checkout_controller
+from controller.billing_system.customer import controller as customer_controller
+from controller.billing_system.invoice import controller as invoice_controller
 
 app = FastAPI(
     title="PO PDF Processor API", 
@@ -110,6 +118,55 @@ app.include_router(
     agent_test_controller.router,
     prefix="/api/agent/test",
     tags=["Minaki Agents - Testing"]
+)
+
+# Include Billing System routers
+app.include_router(
+    inventory_controller.router,
+    prefix="/billing_system/api/inventory",
+    tags=["Billing System - Inventory"]
+)
+
+app.include_router(
+    pricing_controller.router,
+    prefix="/billing_system/api/pricing",
+    tags=["Billing System - Pricing"]
+)
+
+app.include_router(
+    billing_product_controller.router,
+    prefix="/billing_system/api/products",
+    tags=["Billing System - Products"]
+)
+
+app.include_router(
+    variant_controller.router,
+    prefix="/billing_system/api/products/{product_id}/variants",
+    tags=["Billing System - Variants"]
+)
+
+app.include_router(
+    cart_controller.router,
+    prefix="/billing_system/api/carts",
+    tags=["Billing System - Cart"]
+)
+
+app.include_router(
+    checkout_controller.router,
+    prefix="/billing_system/api/checkout",
+    tags=["Billing System - Checkout"]
+)
+
+app.include_router(
+    customer_controller.router,
+    prefix="/billing_system/api/customers",
+    tags=["Billing System - Customers"]
+)
+
+app.include_router(
+    invoice_controller.router,
+    prefix="/billing_system/api/invoices",
+    tags=["Billing System - Invoices"]
 )
 
 @app.get("/", tags=["System"])
