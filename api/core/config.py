@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     SHOPIFY_SHOP_URL : str = os.getenv("SHOPIFY_SHOP_URL")
     SHOPIFY_API_VERSION : str = os.getenv("SHOPIFY_API_VERSION")
     SHOPIFY_ACCESS_TOKEN : str = os.getenv("SHOPIFY_ACCESS_TOKEN")
+    DEFAULT_MARGIN_PERCENT: float = float(os.getenv("DEFAULT_MARGIN_PERCENT", "25.0"))
     # Initialize tokens as class attributes so they persist
     ACCESS_TOKEN: Optional[str] = None
     REFRESH_TOKEN: Optional[str] = None

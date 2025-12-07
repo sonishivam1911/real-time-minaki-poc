@@ -27,6 +27,7 @@ def generation_node(state: ProductWriterState) -> ProductWriterState:
     
     try:
         product = state['product_row']
+        logger.info(f"   Generating for Product ID: {product}")
         
         # Select unique name from pool
         selected_name = select_unique_name_from_pool(state)
@@ -42,6 +43,10 @@ def generation_node(state: ProductWriterState) -> ProductWriterState:
             "primary_color": product.get('primary_color', ''),
             "secondary_color": product.get('secondary_color', ''),
             "occasions": product.get('occasions', ''),
+            "necklace_design" : product.get('necklace_design', ''),
+            "bracelet_design" : product.get('bracelet_design', ''),
+            "earring_design" : product.get('earring_design', ''),
+            "ring_design" : product.get('ring_design', ''),
             "name_meaning": selected_name.get("meaning", ""),
             "suggested_name": selected_name.get("name", ""),
             "keywords": ', '.join(state['filtered_keywords']),

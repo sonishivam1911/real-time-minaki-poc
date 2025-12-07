@@ -64,35 +64,60 @@ Generate product content with these EXACT specifications:
 
 ### 2. DESCRIPTION (300-500 characters, PLAIN TEXT)
 
-**Structure (2-3 sentences):**
+**MANDATORY Structure (2-3 sentences):**
 
-**Sentence 1:**
-- Introduce the set with finish and key visual features
-- Mention finish (22k gold-plated, antique-finish, gold-plated)
-- Mention primary materials (kundan work, polki, Kemp stones, emerald beads, pearls)
-- If product name has meaning, include it naturally
+**Sentence 1 - Product Introduction (ALL elements REQUIRED):**
+"[Product Name] Jewellery Set features [DESCRIPTIVE COMPONENTS - max 30 chars] with [FINDINGS] findings, crafted in [FULL FINISH] finish with [PRIMARY MATERIALS/COLORS]."
 
-Example:
-"Haripriya Jewellery Set radiates with a 22k gold-plated finish, showcasing emerald-colored stones and lustrous pearl drops. Named after a goddess associated with prosperity, this kundan polki jewelry set embodies timeless elegance."
+**Component Description Rules:**
+- Be descriptive, not just listing
+- Under 30 characters total
+- Examples:
+  * ✅ "choker necklace and jhumka earrings"
+  * ✅ "layered Rani Haar with maang teeka"
+  * ✅ "collar necklace and chandelier drops"
+  * ❌ "necklace and earrings" (too generic)
 
-**Sentence 2:**
-- Describe design elements and craftsmanship OR visual appeal
-- Mention technique if relevant (Kundan, Polki, Meenakari, Jadau)
-- Keep it elegant and flowing
+**Findings - Always Include:**
+- Examples: "chain and hook findings", "dori and stud findings", "clasp and hook findings"
 
-Example:
-"The combination of green tones and cream pearls creates visual depth and sophistication. Perfect for brides and traditional jewelry lovers, this versatile set transitions effortlessly from wedding ceremonies to festive gatherings."
+**Finish - Full Technical Term:**
+- Examples: "22k gold-plated brass finish", "gold-plated finish", "antique-finish gold-plated"
 
-**Alternative 2-sentence structure:**
-Example (Chaitanya):
-"Chaitanya jewellery set is a vibrant gold-plated Kundan and Polki set adorned with striking ruby-colored stones and lush green semi-precious beads. Named 'Chaitanya,' meaning 'life force' or 'consciousness,' it reflects the dynamic energy and spiritual vitality embodied by the rich red and green hues."
+**Material/Color Descriptions:**
+- Examples: "emerald-colored stones and cultured pearls", "ruby Kemp stones and green beads", "Kundan and Polki work"
 
-**IMPORTANT:**
-- NO keyword stuffing - keywords should flow naturally
-- MUST mention components (necklace, earrings, etc.) and findings (chain, hook, dori, etc.) naturally in description
-- Focus on elegance and emotion over SEO
-- Keep between 300-500 characters
-- NO mention of occasions in description (save for styling tip)
+**Example Sentence 1:**
+"Haripriya Jewellery Set features a choker necklace and jhumka earrings with chain and hook findings, crafted in 22k gold-plated brass finish with emerald-colored stones and lustrous pearl drops."
+
+**Sentence 2 - Name Meaning & Visual Appeal:**
+"Named [NAME MEANING/ORIGIN], it embodies [QUALITY/SYMBOLISM]—the [MATERIALS/COLORS] capture [CHARACTERISTIC], creating [AESTHETIC]."
+
+OR (Alternative structure if name meaning ties to design):
+"Named '[NAME],' meaning '[MEANING],' it reflects [CONNECTION TO DESIGN/COLORS]. The [TECHNIQUE] craftsmanship combined with [MATERIALS] creates [AESTHETIC]."
+
+**Sentence 3 - Occasion & Neckline Hint (Brief - max 100 chars):**
+"Perfect for [1-2 OCCASIONS from input]. Pairs beautifully with [NECKLINE TYPE based on necklace design]."
+
+**Neckline Pairing Based on Necklace Design:**
+- Choker-style → "off-shoulder, sweetheart, or deep V-neck styles"
+- Collar-style → "strapless, boat neck, or simple round necklines"
+- Long/Layered/Rani Haar → "simple round, boat, or high-neck styles"
+- Traditional long → "simple round, boat, or V-necklines"
+
+**Example Sentence 3:**
+"Perfect for weddings and festive celebrations. Pairs beautifully with off-shoulder, sweetheart, or deep V-neck styles."
+
+**CRITICAL RULES:**
+- ALWAYS mention specific necklace/bracelet/earring design if provided in input
+- ALWAYS mention components descriptively (under 30 chars)
+- ALWAYS mention findings from input
+- ALWAYS mention full finish specification
+- ALWAYS include 1-2 occasions from input
+- ALWAYS include neckline pairing based on necklace design
+- Use proper Kundan/Polki terminology (never claim "real gold" or "real gems")
+- NO made-up design details unless in input
+- Total: 300-500 characters
 
 ### 3. SEO META TITLE (50-60 characters)
 - Include PRIMARY keyword
@@ -226,127 +251,44 @@ Return ONLY valid JSON (no backticks, no markdown, no text):
   }}
 }}
 
-# EXAMPLES (10 KUNDAN/POLKI PRODUCTS):
+# EXAMPLES:
 
-### Example 1: Haripriya Jewellery Set
-```json
+### Example 1: Divyani Jewellery Set (Green Kundan Polki)
 {{
   "action": "generate_product_content",
   "action_input": {{
-    "title": "Haripriya Jewellery Set",
-    "description": "Haripriya Jewellery Set is a splendid gold-plated Kundan and Polki jewellery set that radiates regal elegance with its intricate craftsmanship. Named 'Haripriya,' meaning 'beloved of Lord Vishnu,' it symbolizes divine grace and royal heritage, perfectly reflected in the rich green and gold tones of the set. This collection embodies timeless beauty and spiritual richness, making it an exquisite choice for those who cherish tradition with a majestic touch.",
-    "styling_tip": "Pair with traditional sarees or lehengas in rich greens, golds, or deep reds to enhance the regal colors of the set. Ideal for brides, this set can be worn for weddings, engagements, or cocktail events. Choose classic necklines like round, boat, or high collars to showcase the detailed Kundan and Polki work elegantly. Style hair in a sleek bun or soft waves adorned with fresh flowers or traditional hair accessories for a royal look. Opt for warm-toned makeup with gold highlights and subtle green eyeshadow to complement the set's hues. Keep other accessories minimal to let the intricate craftsmanship and colors of the set shine. Occasions: Ideal for royal weddings, religious ceremonies, festive occasions like Diwali, and grand family celebrations where tradition and opulence are celebrated."
+    "title": "Divyani Jewellery Set",
+    "description": "Divyani Jewellery Set features a choker-style necklace and traditional jhumka earrings with chain and hook findings, crafted in 22k gold-plated brass finish with emerald-colored stones and lustrous cultured pearl drops. Named 'divine' or 'heavenly,' it embodies celestial grace—the emerald tones symbolize prosperity and growth while pearl drops add timeless elegance, creating regal traditional beauty. Perfect for weddings and religious ceremonies. Pairs beautifully with off-shoulder, sweetheart, or deep V-neck styles.",
+    "seo_meta_title": "Kundan Polki Jewelry Set | Green Pearl Traditional",
+    "seo_meta_description": "Shop Divyani kundan polki jewelry set with emerald stones & pearl drops. Ideal bridal jewellery set for Indian weddings. Buy traditional sets now.",
+    "styling_tip": "Pair Divyani with richly embroidered traditional sarees or lehengas in deep emerald green, burgundy, gold, or ivory tones to enhance the regal colors and create visual harmony. The choker-style necklace sits beautifully at the base of the neck and looks absolutely stunning with off-shoulder, sweetheart, or deep V-neck blouse designs—these necklines frame the collarbone perfectly and allow the choker to sit as a crown jewel without being hidden by fabric. For the traditional bridal look, consider heavy silk sarees with gold zari work or velvet lehengas with intricate embroidery. Style hair in a classic low bun adorned with fresh jasmine flowers, mogra strings, or traditional hair accessories like jadau pins to maintain that royal aesthetic. Keep the bun slightly to the side or low to ensure the necklace remains fully visible. For makeup, opt for warm-toned looks with gold and green eyeshadow, defined eyes with kajal, and deep rose or berry lips to complement both the emerald stones and pearl drops. Add gold highlighter on the high points of your face. Accessorize with matching Kundan bangles and perhaps a maang teeka if the occasion calls for full bridal regalia. Perfect for royal Indian weddings, religious ceremonies like pujas, festive occasions like Diwali, grand family celebrations, and traditional events where divine grace and regal elegance are celebrated with timeless sophistication."
   }}
 }}
-```
 
-### Example 2: Mayura Jewellery Set
-```json
+### Example 2: Padmini Jewellery Set (Ruby Kemp Temple Jewelry)
 {{
   "action": "generate_product_content",
   "action_input": {{
-    "title": "Mayura Jewellery Set",
-    "description": "Mayura jewellery set is a stunning gold-plated Kundan and Meenakari set featuring a necklace, earrings, and maang teeka, adorned with exquisite cyan and pink hues. Named after the majestic peacock, 'Mayura' symbolizes grace, beauty, and vibrant colors, perfectly reflecting the set's intricate craftsmanship and lively palette. This collection captures the essence of elegance and tradition, making it a captivating choice for special occasions.",
-    "styling_tip": "Pair with traditional Indian outfits like richly embroidered sarees or lehengas in complementary cyan, pink, gold, or neutral tones to enhance the vibrant colors. Choose simple necklines (deep round, boat neck, V-neck) to highlight the necklace and maang teeka. Style hair in elegant updos or soft curls to showcase the maang teeka and earrings beautifully. Keep makeup balanced with subtle pink or coral tones to harmonize with the set's color palette. Avoid heavy additional jewelry to let the Kundan and Meenakari set shine as the centerpiece. Perfect for brides, as this set adds regal charm and vibrant elegance to the bridal look. Occasions: Ideal for weddings, festive celebrations, cultural ceremonies, and grand family gatherings where traditional opulence and colorful elegance are celebrated."
+    "title": "Padmini Jewellery Set",
+    "description": "Padmini Jewellery Set features a traditional collar necklace and temple-style earrings with secure clasp and stud findings, crafted in antique-finish gold-plated brass with ruby-colored Kemp stones and emerald-colored semi-precious beads. Named after the lotus goddess symbolizing purity and prosperity, the rich ruby and emerald combination captures South Indian temple artistry—the Kemp work creates bold traditional grandeur. Perfect for grand weddings and cultural ceremonies. Complements strapless, boat neck, or simple round necklines.",
+    "seo_meta_title": "Temple Jewelry Set | Ruby Kemp Emerald Traditional",
+    "seo_meta_description": "Buy Padmini temple jewelry set with ruby Kemp stones & emerald beads. Gold-plated traditional jewellery for South Indian weddings. Shop now.",
+    "styling_tip": "Pair Padmini with traditional South Indian silk sarees in rich temple colors—deep maroon, ruby red, bottle green, or classic Kanjivaram gold—to honor the temple jewelry heritage and create an authentic, cohesive look. The collar-style necklace is a bold, statement piece typical of temple jewelry and sits best with strapless, boat neck, or simple round necklines—these clean, uncluttered styles allow the intricate Kemp work and the collar's architectural beauty to be the undisputed focal point without fabric interference. Avoid high or ornate necklines that compete for attention. Style hair in a traditional large low bun (kondai style) adorned with fresh flowers like jasmine strands, roses, or temple jewelry hair accessories like rakodi or chandra for that quintessential South Indian bridal elegance. The substantial bun also balances the visual weight of the collar necklace beautifully. For makeup, embrace bold traditional looks with defined eyes using black kajal and kohl, warm earthy eyeshadow in coppers and golds, and deep red or maroon lips that echo the ruby Kemp stones. Apply kumkum on the forehead and add a prominent bindi. Complete the look with matching Kemp bangles, traditional kamarbandh, and perhaps toe rings. Perfect for grand South Indian weddings, traditional temple ceremonies, classical dance performances, cultural festivals like Navratri, family celebrations, and heritage events where temple artistry and bold traditional grandeur reign supreme."
   }}
 }}
-```
 
-### Example 3: Chaitali Jewellery Set
-```json
+### Example 3: Meera Jewellery Set (Meenakari Pink Cyan)
 {{
   "action": "generate_product_content",
   "action_input": {{
-    "title": "Chaitali Jewellery Set",
-    "description": "Chaitali jewellery set is a radiant gold-plated Kundan and Meenakari jewellery set that beautifully blends light green and pink hues. Named 'Chaitali,' meaning 'born in the spring,' it captures the essence of fresh blossoms and new beginnings, reflecting the set's vibrant, delicate colors. This collection embodies the grace and renewal of spring, making it perfect for those who cherish timeless elegance with a lively touch.",
-    "styling_tip": "Pair with pastel-colored sarees, lehengas, or Anarkalis in soft greens, pinks, or neutrals to highlight the gentle hues of the set. Opt for traditional neckline styles such as deep V, boat neck, or sweetheart to showcase the intricate work of the jewellery. Style hair in elegant buns or soft waves to keep the focus on the necklace, earrings, and maang teeka. Keep makeup natural with light pink or peach tones to complement the pastel palette and enhance the fresh, youthful vibe. For a balanced look, wear minimal other accessories to allow the set's vibrant colors and craftsmanship to stand out. Occasions: Ideal for spring or summer weddings, festive celebrations, family gatherings, and cultural ceremonies where fresh, vibrant elegance is appreciated."
+    "title": "Meera Jewellery Set",
+    "description": "Meera Jewellery Set features a layered princess-length necklace, matching drop earrings, and decorative maang teeka with chain, hook, and dori findings, crafted in gold-plated brass finish with vibrant pink and cyan Kundan Meenakari work. Named after the devotional poet-saint symbolizing pure love and devotion, the delicate pink and cyan hues create artistic harmony—the intricate Meenakari enamel work adds colorful spiritual elegance. Perfect for festive celebrations and family gatherings. Pairs beautifully with simple round, boat, or V-necklines.",
+    "seo_meta_title": "Kundan Meenakari Set | Pink Cyan Traditional Jewelry",
+    "seo_meta_description": "Discover Meera kundan meenakari jewelry set with pink & cyan work. Perfect traditional bridal jewellery for festive occasions. Order now.",
+    "styling_tip": "Pair Meera with elegant anarkalis, flowing lehengas, or graceful sarees in complementary pastels—soft pinks, powder blues, mint greens, or neutral ivories and creams—to let the vibrant Meenakari colors shine without overwhelming the overall aesthetic. The layered princess-length necklace creates beautiful cascading movement and works wonderfully with simple round, boat, or V-necklines—these straightforward cuts provide a clean, elegant canvas that doesn't compete with the intricate enamel work and allows the colorful artistry to be fully appreciated. Avoid heavily embellished or high necklines. The included maang teeka adds traditional bridal completeness, so style hair in soft side-swept waves, romantic braids, or a half-up half-down style that keeps the forehead clear to showcase this beautiful piece. For full bridal looks, an elegant bun works perfectly too. For makeup, keep it fresh and youthful with soft pink or peach tones—think rosy cheeks, subtle pink eyeshadow or champagne tones, and peachy-pink lips that harmonize with the jewelry's palette without matching too literally. Add a delicate bindi to complete the traditional touch. Accessorize thoughtfully with light bangles or a simple bracelet to avoid overwhelming the look. Perfect for festive celebrations like Diwali or Holi, intimate family gatherings, mehendi ceremonies, sangeet nights, engagement parties, and joyous cultural events where devotional beauty, artistic enamel work, and colorful elegance create memorable, spiritually-inspired aesthetics."
   }}
 }}
-```
 
-### Example 4: Rajni Jewellery Set
-```json
-{{
-  "action": "generate_product_content",
-  "action_input": {{
-    "title": "Rajni Jewellery Set",
-    "description": "Rajni jewellery set is a stunning gold-plated set featuring rich ruby-colored Kemp stones and vibrant emerald-colored semi-precious beads. Named 'Rajni,' meaning 'queen,' it embodies regal elegance and majestic charm, perfectly reflected in its royal color palette. This set is designed to make the wearer feel empowered and radiant, embodying the grace and strength of a true queen.",
-    "styling_tip": "Pair with richly embroidered traditional outfits like deep red or emerald green sarees and lehengas to complement the set's ruby and emerald tones. Ideal for brides, this set can be worn for weddings, engagements, or cocktail events. Opt for classic necklines such as round, boat neck, or high collars to showcase the intricate Kemp stones and beadwork. Style hair in elegant buns or soft curls to highlight the necklace and earrings while maintaining a regal look. Choose makeup with warm, bold shades like deep reds or golds to enhance the royal color palette of the jewellery. Keep other accessories minimal to allow the set's rich colors and design to be the focal point. Occasions: Perfect for royal weddings, grand festive celebrations, cultural ceremonies, and special occasions where traditional grandeur and opulence are celebrated."
-  }}
-}}
-```
-
-### Example 5: Swarna Jewellery Set
-```json
-{{
-  "action": "generate_product_content",
-  "action_input": {{
-    "title": "Swarna Jewellery Set",
-    "description": "Swarna Jewellery Set is a radiant gold-plated Kundan and Polki set that exudes timeless elegance and luxurious charm. Named 'Swarna,' meaning 'gold' in Sanskrit, it perfectly captures the set's rich golden hues and classic craftsmanship. This collection symbolizes prosperity, beauty, and versatility, making it an essential piece that complements every occasion and outfit with grace.",
-    "styling_tip": "Pair the set with both traditional and contemporary outfits like minimalist silk sarees, structured jumpsuits, or elegant gowns in neutral or jewel tones to create a fusion look. Experiment with mixing metals by wearing delicate silver or rose gold bangles alongside the set for an unexpected, trendy contrast. Style hair in loose, natural waves or a messy braid to balance the set's intricate richness with effortless modernity. Add bold accessories like a statement clutch or metallic heels to elevate the overall look without competing with the jewellery. Incorporate warm, glowing makeup with golden highlighter and nude lips to subtly echo the set's golden tones. Occasions: Perfect for upscale cocktail parties, fusion weddings, art gallery events, festive celebrations, and elegant dinners where classic luxury meets modern style."
-  }}
-}}
-```
-
-### Example 6: Elysia Jewellery Set
-```json
-{{
-  "action": "generate_product_content",
-  "action_input": {{
-    "title": "Elysia Jewellery Set",
-    "description": "Elysia jewellery set is a breathtaking gold-plated Polki set that radiates celestial beauty and refined elegance. Named 'Elysia,' inspired by the mythical Elysian fields representing paradise and bliss, it embodies heavenly charm and timeless grace. This set is designed to make the wearer feel effortlessly radiant, perfect for those who seek a divine touch to their ensemble.",
-    "styling_tip": "Pair with flowing evening gowns or traditional lehengas in soft pastels or deep jewel tones to amplify the set's ethereal beauty. Opt for elegant hairstyles like loose curls or a low chignon to complement the delicate Polki craftsmanship. Use subtle, glowing makeup with highlights and soft shimmer to enhance the radiant, heavenly appeal of the jewellery. Accessorize minimally to let the intricate Polki details stand out as the focal point of your look. Incorporate sheer or embroidered fabrics that echo the set's delicate and divine aesthetic. Occasions: Ideal for weddings, formal galas, elegant receptions, and festive celebrations where sophisticated charm and timeless beauty are desired."
-  }}
-}}
-```
-
-### Example 7: Oralia Jewellery Set
-```json
-{{
-  "action": "generate_product_content",
-  "action_input": {{
-    "title": "Oralia Jewellery Set",
-    "description": "Oralia jewellery set is a stunning gold-plated set combining the timeless allure of Polki and Kundan with sparkling crystals and AD stones. Named 'Oralia,' meaning 'golden' or 'golden light,' it perfectly captures the set's radiant brilliance and luxurious craftsmanship. This collection shines with graceful elegance, designed to illuminate every occasion with a warm, golden glow.",
-    "styling_tip": "Pair with rich fabrics like velvet or brocade in deep hues such as royal blue, maroon, or emerald to highlight the gold's warm glow and crystal sparkle. Experiment with contemporary fusion looks by wearing the set with elegant off-shoulder blouses or asymmetrical necklines that showcase the intricate design. Style hair in voluminous waves or a chic side-swept hairstyle to add a modern, glamorous touch. Complement with shimmering makeup featuring golden eyeshadow and bold eyeliner to enhance the set's radiant sparkle. Layer with delicate gold bangles or rings for a sophisticated yet balanced finish. Occasions: Perfect for grand weddings, cocktail parties, evening galas, festive celebrations, and upscale social gatherings where opulence and style meet."
-  }}
-}}
-```
-
-### Example 8: Anvitha Jewellery Set
-```json
-{{
-  "action": "generate_product_content",
-  "action_input": {{
-    "title": "Anvitha Jewellery Set",
-    "description": "Anvitha jewellery set is an exquisite gold-plated Polki and Kundan set that radiates subtle elegance and timeless charm. Named 'Anvitha,' meaning 'understanding' or 'absorbed,' it reflects the deep appreciation for intricate craftsmanship and the warm glow of delicate ruby accents. This set beautifully embodies thoughtful grace, perfect for those who value refined beauty with meaningful depth.",
-    "styling_tip": "Pair with elegant sarees or anarkalis in soft shades like blush, cream, or deep maroon to enhance the subtle ruby accents. Opt for classic necklines such as sweetheart, boat, or V-neck to highlight the intricate Polki and Kundan work. Style hair in soft waves or a low bun adorned with delicate hair accessories for a graceful look. Choose warm, natural makeup with rosy cheeks and subtly tinted lips to complement the set's gentle hues. Keep other accessories minimal to let the jewellery's refined craftsmanship take center stage. Occasions: Perfect for intimate weddings, festive gatherings, formal family functions, and elegant cultural events where understated sophistication is cherished."
-  }}
-}}
-```
-
-### Example 9: Chaitanya Jewellery Set
-```json
-{{
-  "action": "generate_product_content",
-  "action_input": {{
-    "title": "Chaitanya Jewellery Set",
-    "description": "Chaitanya jewellery set is a vibrant gold-plated Kundan and Polki set adorned with striking ruby-colored stones and lush green semi-precious beads. Named 'Chaitanya,' meaning 'life force' or 'consciousness,' it reflects the dynamic energy and spiritual vitality embodied by the rich red and green hues. This set is designed to inspire a radiant presence, blending tradition with the vibrant spirit of life.",
-    "styling_tip": "Pair with deep red, emerald green, or gold-toned traditional outfits like sarees or lehengas to harmonize with the set's rich ruby and green hues. Ideal for brides, this set can be worn for weddings, engagements, or cocktail events. Choose necklines such as sweetheart, boat, or halter to showcase the intricate Kundan and Polki work beautifully. Style hair in elegant updos or soft curls, allowing the necklace and earrings to take center stage. Opt for makeup with warm, glowing tones—think ruby-red lips and subtle green or gold eyeshadow—to complement the vibrant colors. Keep other accessories simple to maintain focus on the striking combination of ruby and green stones. Occasions: Ideal for weddings, festive celebrations like Diwali, cultural ceremonies, and grand family gatherings where vibrant tradition meets regal charm."
-  }}
-}}
-```
-
-### Example 10: Aaranya Jewellery Set
-```json
-{{
-  "action": "generate_product_content",
-  "action_input": {{
-    "title": "Aaranya Jewellery Set",
-    "description": "Aaranya jewellery set is an elegant gold-plated Kundan and Polki jewellery set that captures the serene beauty of nature with its intricate design and timeless appeal. Named 'Aaranya,' meaning 'forest' or 'wilderness,' it reflects the natural grace and lush richness symbolized by the set's green and golden hues. This collection embodies tranquility and regal sophistication, perfect for those who cherish the harmony of tradition and nature.",
-    "styling_tip": "Pair with simple yet elegant outfits like pastel-colored sarees, chiffon salwar suits, or light silk lehengas to enhance the set's understated beauty. Opt for clean necklines such as boat neck, V-neck, or simple round collars that complement the set's delicate design. Style hair in a sleek low bun or soft, straightened hair for a polished and graceful look. Ideal for brides, this set can be worn for weddings, engagements, or cocktail events. Use minimal makeup with natural tones and a soft nude lip to maintain the set's elegant simplicity. Avoid heavy accessories; let the subtle charm of the jewellery be the focal point. Occasions: Perfect for casual weddings, daytime functions, formal office events, intimate gatherings, and elegant cultural ceremonies where simplicity and sophistication are appreciated."
-  }}
-}}
-```
 
 
 Generate content following ALL guidelines and examples above. Return ONLY valid JSON.
