@@ -444,6 +444,212 @@ class NykaaExportService:
         print(f"🎯 Final result: {len(combined_products)} products ready for Nykaa export")
         return combined_products
     
+    async def fetch_all_products(self, fetch_detailed: bool = True) -> List[Dict[str, Any]]:
+        """
+        Fetch ALL products using ZAKYA-FIRST approach
+        
+        1. Fetch ALL products from Zakya (master inventory) with DETAILED information
+        2. For each Zakya product, try to find matching Shopify data
+        3. Return combined dataset with Zakya as primary source
+        
+        Args:
+            fetch_detailed: Always True - we always fetch detailed information for complete data
+        
+        Returns:
+            List of products with Zakya data + optional Shopify enrichment
+        """
+        # Force detailed fetching for complete product information
+        fetch_detailed = True
+        
+        print(f"🚀 Starting Zakya-first fetch for ALL products...")
+        print(f"📊 Mode: DETAILED product information (including custom fields)")
+        
+        # STEP 1: Fetch ALL products from Zakya (master inventory) with details
+        print("📦 Step 1: Fetching ALL products from Zakya with detailed information...")
+        zakya_products = await self.fetch_all_zakya_products(fetch_detailed=fetch_detailed)
+        print(f"   Found {len(zakya_products)} products in Zakya")
+        
+        if not zakya_products:
+            print("❌ No products found in Zakya")
+            return []
+        
+        # STEP 2: Extract SKUs from Zakya products for Shopify lookup
+        zakya_skus = []
+        zakya_by_sku = {}
+        
+        for product in zakya_products:
+            sku = product.get("sku") or product.get("item_code")
+            if sku:
+                normalized_sku = self.normalize_sku(sku).upper()
+                zakya_by_sku[normalized_sku] = product
+                zakya_skus.append(sku)
+        
+        print(f"📝 Extracted {len(zakya_skus)} unique SKUs from Zakya")
+        
+        # STEP 3: Fetch corresponding Shopify products
+        print("🛍️  Step 2: Fetching matching products from Shopify...")
+        shopify_products = []
+        
+        if zakya_skus:
+            try:
+                shopify_products = await self.fetch_shopify_products_by_skus(zakya_skus)
+                print(f"   Found {len(shopify_products)} matching products in Shopify")
+            except Exception as e:
+                print(f"⚠️ Error fetching from Shopify: {e}")
+                print("   Continuing with Zakya-only data...")
+        
+        # Create SKU mapping for Shopify products
+        shopify_by_sku = {}
+        for product in shopify_products:
+            variants = product.get("variants", {}).get("edges", [])
+            if variants:
+                variant = variants[0]["node"]
+                sku = variant.get("sku")
+                if sku:
+                    normalized_sku = self.normalize_sku(sku).upper()
+                    shopify_by_sku[normalized_sku] = product
+        
+        # STEP 4: Combine data with Zakya as primary source
+        print("🔄 Step 3: Combining Zakya (primary) + Shopify (enrichment)...")
+        combined_products = []
+        
+        for sku, zakya_product in zakya_by_sku.items():
+            shopify_product = shopify_by_sku.get(sku)
+            
+            if shopify_product:
+                # Zakya + Shopify data available
+                shopify_product["_zakya_data"] = zakya_product
+                combined_products.append(shopify_product)
+                status = "✅ Zakya + Shopify"
+            else:
+                # Zakya-only product - create Shopify-like structure
+                fake_shopify_product = self._create_shopify_like_structure_from_zakya(zakya_product)
+                combined_products.append(fake_shopify_product)
+                status = "🟡 Zakya only"
+            
+            if len(combined_products) % 100 == 0:  # Progress logging
+                print(f"   Processed {len(combined_products)} products...")
+        
+        print(f"🎯 Final result: {len(combined_products)} products ready")
+        print(f"   Shopify+Zakya: {len([p for p in combined_products if p.get('variants', {}).get('edges')])}")
+        print(f"   Zakya-only: {len([p for p in combined_products if not p.get('variants', {}).get('edges')])}")
+        
+        return combined_products
+    
+    async def fetch_all_zakya_products(self, fetch_detailed: bool = True) -> List[Dict[str, Any]]:
+        """
+        Fetch ALL products from Zakya with DETAILED information including custom fields
+        
+        Args:
+            fetch_detailed: Always True - we always fetch detailed info for complete data
+        
+        Returns:
+            List of all Zakya products with complete details
+        """
+        # Always fetch detailed information for complete product data
+        fetch_detailed = True
+        
+        try:
+            # Use the existing Zakya connection pattern from settings
+            zakya_connection = settings.get_zakya_connection()
+            access_token = zakya_connection.get('access_token')
+            organization_id = zakya_connection.get('organization_id')
+            
+            if not access_token or not organization_id:
+                print("❌ Zakya connection not properly configured")
+                return []
+            
+            # Always fetch ALL products with DETAILED information (includes custom fields)
+            print("🔍 Fetching products with DETAILED information (including custom fields)...")
+            all_items = self.fetch_all_products_with_details(access_token, organization_id)
+            print(f"✅ Successfully fetched {len(all_items)} products with detailed information")
+            
+            return all_items
+            
+        except Exception as e:
+            print(f"❌ Error fetching detailed products from Zakya: {e}")
+            print("🔄 Falling back to basic product information...")
+            
+            # Fallback to basic fetch if detailed fails
+            try:
+                zakya_connection = settings.get_zakya_connection()
+                access_token = zakya_connection.get('access_token')
+                organization_id = zakya_connection.get('organization_id')
+                
+                basic_items = self.fetch_all_products_from_zakya(access_token, organization_id)
+                print(f"⚠️ Using basic information for {len(basic_items)} products")
+                return basic_items
+                
+            except Exception as fallback_error:
+                print(f"❌ Both detailed and basic fetch failed: {fallback_error}")
+                import traceback
+                traceback.print_exc()
+                return []
+    
+    def _create_shopify_like_structure_from_zakya(self, zakya_product: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a Shopify-like product structure from Zakya data alone
+        
+        Args:
+            zakya_product: Product data from Zakya
+        
+        Returns:
+            Shopify-like product structure with Zakya data
+        """
+        try:
+            sku = zakya_product.get("sku") or zakya_product.get("item_code", "")
+            name = zakya_product.get("name", "")
+            description = zakya_product.get("description", "")
+            rate = zakya_product.get("rate", 0)
+            stock = zakya_product.get("stock_on_hand", 0)
+            
+            # Create minimal Shopify-like structure
+            fake_shopify = {
+                "id": f"zakya_{zakya_product.get('item_id', sku)}",
+                "title": name,
+                "description": description,
+                "descriptionHtml": f"<p>{description}</p>" if description else "",
+                "vendor": "Zakya",
+                "productType": zakya_product.get("category_name", ""),
+                "handle": sku.lower().replace(" ", "-") if sku else "",
+                "tags": [],
+                "status": "active",
+                "createdAt": zakya_product.get("created_time", ""),
+                "updatedAt": zakya_product.get("last_modified_time", ""),
+                "variants": {
+                    "edges": [{
+                        "node": {
+                            "id": f"zakya_variant_{sku}",
+                            "sku": sku,
+                            "price": str(rate),
+                            "inventoryQuantity": stock,
+                            "availableForSale": stock > 0,
+                            "title": "Default",
+                            "selectedOptions": []
+                        }
+                    }]
+                },
+                "images": {"edges": []},  # No images from Zakya
+                "metafields": {"edges": []},  # No metafields from Zakya
+                "_zakya_data": zakya_product,
+                "_source": "zakya_only"
+            }
+            
+            return fake_shopify
+            
+        except Exception as e:
+            print(f"⚠️ Error creating Shopify structure for Zakya product: {e}")
+            # Return minimal safe structure
+            return {
+                "id": f"zakya_error_{zakya_product.get('item_id', 'unknown')}",
+                "title": zakya_product.get("name", "Error Product"),
+                "variants": {"edges": []},
+                "images": {"edges": []},
+                "metafields": {"edges": []},
+                "_zakya_data": zakya_product,
+                "_source": "zakya_only"
+            }
+
     async def fetch_products_by_skus(self, skus: List[str]) -> List[Dict[str, Any]]:
         """
         Fetch products from both Zakya and Shopify, then merge the data

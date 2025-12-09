@@ -5,7 +5,7 @@ from typing import List, Optional, Dict, Any
 from uuid import uuid4
 from datetime import datetime, date
 
-from core.database import PostgresCRUD
+from core.database import db
 from core.config import settings
 
 
@@ -13,7 +13,7 @@ class InventoryService:
     """Service for inventory-related business logic"""
     
     def __init__(self):
-        self.crud = PostgresCRUD(settings.POSTGRES_URI)
+        self.crud = db
     
     def receive_metal_lot(
         self,

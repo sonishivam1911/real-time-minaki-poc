@@ -1,11 +1,11 @@
 """
-Customer Service - Business logic for customer management
+Customer Service - Business logic for customer management using customer_master table
 """
 from typing import List, Optional, Dict, Any
 from uuid import uuid4
 from datetime import datetime
 
-from core.database import PostgresCRUD
+from core.database import db
 from core.config import settings
 from utils.schema.billing_system.checkout_schema import CustomerCreate, CustomerUpdate
 
@@ -14,11 +14,11 @@ class CustomerService:
     """Service for customer-related business logic"""
     
     def __init__(self):
-        self.crud = PostgresCRUD(settings.POSTGRES_URI)
+        self.crud = db
     
     def create_customer(self, customer_data: CustomerCreate) -> Dict[str, Any]:
         """
-        Create a new customer.
+        Create a new customer in customer_master table.
         
         Args:
             customer_data: Customer creation data
@@ -27,36 +27,52 @@ class CustomerService:
             Created customer data
         """
         try:
-            customer_id = str(uuid4())
+            # Generate customer number
+            customer_number = self._generate_customer_number()
             
-            # Generate customer code
-            customer_code = self._generate_customer_code()
+            # Get next contact ID
+            contact_id = self._get_next_contact_id()
             
+            # Map checkout schema to customer_master fields
             customer_record = {
-                'id': customer_id,
-                'customer_code': customer_code,
-                'full_name': customer_data.full_name,
-                'email': customer_data.email,
-                'phone': customer_data.phone,
-                'address': customer_data.address,
-                'city': customer_data.city,
-                'state': customer_data.state,
-                'postal_code': customer_data.postal_code,
-                'customer_type': customer_data.customer_type,
-                'credit_limit': 0,
-                'outstanding_balance': 0,
-                'loyalty_points': 0,
-                'notes': customer_data.notes,
-                'created_at': datetime.utcnow(),
-                'updated_at': datetime.utcnow()
+                'Created Time': datetime.utcnow().isoformat(),
+                'Last Modified Time': datetime.utcnow().isoformat(),
+                'Contact ID': contact_id,
+                'Contact Type': 'customer',
+                'Customer Number': customer_number,
+                'Customer Sub Type': customer_data.customer_type if hasattr(customer_data, 'customer_type') else 'regular',
+                'Contact Name': customer_data.full_name,
+                'Display Name': customer_data.full_name,
+                'First Name': customer_data.full_name.split(' ')[0] if ' ' in customer_data.full_name else customer_data.full_name,
+                'Last Name': ' '.join(customer_data.full_name.split(' ')[1:]) if ' ' in customer_data.full_name else '',
+                'EmailID': customer_data.email,
+                'Phone': customer_data.phone,
+                'MobilePhone': customer_data.phone,
+                'Billing Address': customer_data.address if hasattr(customer_data, 'address') else None,
+                'Billing City': customer_data.city if hasattr(customer_data, 'city') else None,
+                'Billing State': customer_data.state if hasattr(customer_data, 'state') else None,
+                'Billing Code': customer_data.postal_code if hasattr(customer_data, 'postal_code') else None,
+                'Shipping Address': customer_data.address if hasattr(customer_data, 'address') else None,
+                'Shipping City': customer_data.city if hasattr(customer_data, 'city') else None,
+                'Shipping State': customer_data.state if hasattr(customer_data, 'state') else None,
+                'Shipping Code': customer_data.postal_code if hasattr(customer_data, 'postal_code') else None,
+                'Currency Code': 'INR',
+                'Status': 'Active',
+                'Taxable': True
             }
             
-            self.crud.insert_record('customers', customer_record)
+            # Add notes if provided
+            if hasattr(customer_data, 'notes') and customer_data.notes:
+                # Since Notes is double precision in schema, we'll handle it differently
+                pass  # Will store notes in a separate field or modify schema
+            
+            self.crud.insert_record('customer_master', customer_record)
             
             return {
                 'success': True,
-                'customer_id': customer_id,
-                'customer_code': customer_code
+                'contact_id': contact_id,
+                'customer_number': customer_number,
+                'customer_data': customer_record
             }
             
         except Exception as e:
@@ -66,19 +82,56 @@ class CustomerService:
                 'error': str(e)
             }
     
-    def _generate_customer_code(self) -> str:
-        """Generate unique customer code"""
-        # Get count of customers
-        count_query = "SELECT COUNT(*) as count FROM customers"
+    def _generate_customer_number(self) -> str:
+        """Generate unique customer number"""
+        # Get count of customers from customer_master
+        count_query = 'SELECT COUNT(*) as count FROM customer_master'
         count_df = self.crud.execute_query(count_query, return_data=True)
         count = int(count_df.iloc[0]['count']) if not count_df.empty else 0
         
         # Format: CUST-0001, CUST-0002, etc.
         return f"CUST-{str(count + 1).zfill(4)}"
     
-    def get_customer_by_id(self, customer_id: str) -> Optional[Dict[str, Any]]:
-        """Get customer by ID"""
-        query = f"SELECT * FROM customers WHERE id = '{customer_id}'"
+    def _get_next_contact_id(self) -> int:
+        """Get next contact ID"""
+        # Get max contact ID from customer_master
+        query = 'SELECT COALESCE(MAX("Contact ID"), 0) as max_id FROM customer_master'
+        df = self.crud.execute_query(query, return_data=True)
+        max_id = int(df.iloc[0]['max_id']) if not df.empty else 0
+        
+        return max_id + 1
+    
+    def get_all_customers(
+        self, 
+    ) -> List[Dict[str, Any]]:
+        """Get list of customers with pagination"""
+        try:
+            query = f'''
+                SELECT * FROM customer_master 
+                WHERE "Customer Sub Type" = 'individual'
+                ORDER BY "Created Time" DESC
+            '''
+            
+            df = self.crud.execute_query(query, return_data=True)
+            return df.to_dict('records') if not df.empty else []
+            
+        except Exception as e:
+            print(f"❌ Error fetching customers: {e}")
+            return []
+    
+    def get_customer_by_id(self, contact_id: str) -> Optional[Dict[str, Any]]:
+        """Get customer by Contact ID from customer_master"""
+        query = f'SELECT * FROM customer_master WHERE "Contact ID" = {contact_id}'
+        df = self.crud.execute_query(query, return_data=True)
+        
+        if df.empty:
+            return None
+        
+        return df.iloc[0].to_dict()
+    
+    def get_customer_by_number(self, customer_number: str) -> Optional[Dict[str, Any]]:
+        """Get customer by Customer Number from customer_master"""
+        query = f'SELECT * FROM customer_master WHERE "Customer Number" = \'{customer_number}\''
         df = self.crud.execute_query(query, return_data=True)
         
         if df.empty:
@@ -91,16 +144,20 @@ class CustomerService:
         phone: Optional[str] = None,
         email: Optional[str] = None,
         name: Optional[str] = None,
-        customer_code: Optional[str] = None
+        customer_number: Optional[str] = None,
+        contact_id: Optional[int] = None,
+        gstin: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        Search customers by various criteria.
+        Search customers by various criteria in customer_master table.
         
         Args:
             phone: Search by phone number
             email: Search by email
             name: Search by name (partial match)
-            customer_code: Search by customer code
+            customer_number: Search by customer number
+            contact_id: Search by contact ID
+            gstin: Search by GST number
         
         Returns:
             List of matching customers
@@ -108,71 +165,95 @@ class CustomerService:
         where_clauses = []
         
         if phone:
-            where_clauses.append(f"phone LIKE '%{phone}%'")
+            where_clauses.append(f'"Phone" ILIKE \'%{phone}%\' OR "MobilePhone" ILIKE \'%{phone}%\'')
         
         if email:
-            where_clauses.append(f"email ILIKE '%{email}%'")
+            where_clauses.append(f'"EmailID" ILIKE \'%{email}%\'')
         
         if name:
-            where_clauses.append(f"full_name ILIKE '%{name}%'")
+            where_clauses.append(f'"Contact Name" ILIKE \'%{name}%\' OR "Display Name" ILIKE \'%{name}%\'')
         
-        if customer_code:
-            where_clauses.append(f"customer_code = '{customer_code}'")
+        if customer_number:
+            where_clauses.append(f'"Customer Number" = \'{customer_number}\'')
+        
+        if contact_id:
+            where_clauses.append(f'"Contact ID" = {contact_id}')
+        
+        if gstin:
+            where_clauses.append(f'"GST Identification Number (GSTIN)" ILIKE \'%{gstin}%\'')
         
         if not where_clauses:
             # Return recent customers if no search criteria
-            query = """
-                SELECT * FROM customers 
-                ORDER BY created_at DESC 
+            query = '''
+                SELECT * FROM customer_master 
+                WHERE "Status" = 'Active'
+                ORDER BY "Created Time" DESC 
                 LIMIT 50
-            """
+            '''
         else:
             where_str = " AND ".join(where_clauses)
-            query = f"""
-                SELECT * FROM customers 
-                WHERE {where_str}
-                ORDER BY created_at DESC
+            query = f'''
+                SELECT * FROM customer_master 
+                WHERE ({where_str}) AND "Status" = 'Active'
+                ORDER BY "Created Time" DESC
                 LIMIT 50
-            """
+            '''
         
         df = self.crud.execute_query(query, return_data=True)
         return df.to_dict('records')
     
     def update_customer(
         self, 
-        customer_id: str, 
+        contact_id: int, 
         update_data: CustomerUpdate
     ) -> Dict[str, Any]:
-        """Update customer information"""
+        """Update customer information in customer_master table"""
         try:
             # Check if customer exists
-            customer = self.get_customer_by_id(customer_id)
+            customer = self.get_customer_by_id(str(contact_id))
             if not customer:
                 return {
                     'success': False,
                     'error': 'Customer not found'
                 }
             
-            # Build update dict
+            # Build update dict mapping to customer_master fields
             updates = {}
+            
             if update_data.full_name:
-                updates['full_name'] = update_data.full_name
+                updates['"Contact Name"'] = f"'{update_data.full_name}'"
+                updates['"Display Name"'] = f"'{update_data.full_name}'"
+                # Split full name for first and last name
+                name_parts = update_data.full_name.split(' ', 1)
+                updates['"First Name"'] = f"'{name_parts[0]}'"
+                if len(name_parts) > 1:
+                    updates['"Last Name"'] = f"'{name_parts[1]}'"
+            
             if update_data.email:
-                updates['email'] = update_data.email
+                updates['"EmailID"'] = f"'{update_data.email}'"
+            
             if update_data.phone:
-                updates['phone'] = update_data.phone
-            if update_data.address:
-                updates['address'] = update_data.address
-            if update_data.city:
-                updates['city'] = update_data.city
-            if update_data.state:
-                updates['state'] = update_data.state
-            if update_data.postal_code:
-                updates['postal_code'] = update_data.postal_code
-            if update_data.customer_type:
-                updates['customer_type'] = update_data.customer_type
-            if update_data.notes:
-                updates['notes'] = update_data.notes
+                updates['"Phone"'] = f"'{update_data.phone}'"
+                updates['"MobilePhone"'] = f"'{update_data.phone}'"
+            
+            if hasattr(update_data, 'address') and update_data.address:
+                updates['"Billing Address"'] = f"'{update_data.address}'"
+                updates['"Shipping Address"'] = f"'{update_data.address}'"
+            
+            if hasattr(update_data, 'city') and update_data.city:
+                updates['"Billing City"'] = f"'{update_data.city}'"
+                updates['"Shipping City"'] = f"'{update_data.city}'"
+            
+            if hasattr(update_data, 'state') and update_data.state:
+                updates['"Billing State"'] = f"'{update_data.state}'"
+                updates['"Shipping State"'] = f"'{update_data.state}'"
+            
+            if hasattr(update_data, 'postal_code') and update_data.postal_code:
+                updates['"Billing Code"'] = f"'{update_data.postal_code}'"
+                updates['"Shipping Code"'] = f"'{update_data.postal_code}'"
+            
+            if hasattr(update_data, 'customer_type') and update_data.customer_type:
+                updates['"Customer Sub Type"'] = f"'{update_data.customer_type}'"
             
             if not updates:
                 return {
@@ -180,15 +261,14 @@ class CustomerService:
                     'error': 'No fields to update'
                 }
             
-            updates['updated_at'] = datetime.utcnow()
+            # Always update last modified time
+            updates['"Last Modified Time"'] = f"'{datetime.utcnow().isoformat()}'"
             
-            # Update customer
-            success = self.crud.update_record(
-                'customers',
-                customer_id,
-                'id',
-                updates
-            )
+            # Build update query
+            set_clause = ", ".join([f"{key} = {value}" for key, value in updates.items()])
+            query = f'UPDATE customer_master SET {set_clause} WHERE "Contact ID" = {contact_id}'
+            
+            success = self.crud.execute_query_new(query)
             
             if success:
                 return {
@@ -210,9 +290,10 @@ class CustomerService:
     
     def get_customer_purchase_history(
         self, 
-        customer_id: str
+        contact_id: int
     ) -> List[Dict[str, Any]]:
         """Get customer's purchase history"""
+        # Note: This assumes invoices table uses Contact ID to link to customer_master
         query = f"""
             SELECT 
                 si.invoice_number,
@@ -222,7 +303,7 @@ class CustomerService:
                 si.paid_amount,
                 si.outstanding_amount
             FROM sales_invoices si
-            WHERE si.customer_id = '{customer_id}'
+            WHERE si.customer_contact_id = {contact_id}
             ORDER BY si.invoice_date DESC
             LIMIT 50
         """
@@ -230,50 +311,70 @@ class CustomerService:
         df = self.crud.execute_query(query, return_data=True)
         return df.to_dict('records')
     
-    def update_loyalty_points(
+    def update_customer_gst_info(
         self, 
-        customer_id: str, 
-        points: int
+        contact_id: int, 
+        gstin: str,
+        gst_treatment: str = "Regular"
     ) -> bool:
-        """Add or subtract loyalty points"""
+        """Update customer's GST information"""
         try:
-            # Get current points
-            customer = self.get_customer_by_id(customer_id)
-            if not customer:
-                return False
-            
-            current_points = customer.get('loyalty_points', 0)
-            new_points = max(0, current_points + points)  # Can't go negative
-            
             query = f"""
-                UPDATE customers
-                SET loyalty_points = {new_points},
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = '{customer_id}'
+                UPDATE customer_master
+                SET "GST Identification Number (GSTIN)" = '{gstin}',
+                    "GST Treatment" = '{gst_treatment}',
+                    "Taxable" = true,
+                    "Last Modified Time" = '{datetime.utcnow().isoformat()}'
+                WHERE "Contact ID" = {contact_id}
             """
             
-            return self.crud.execute_query(query)
+            return self.crud.execute_query_new(query)
             
         except Exception as e:
-            print(f"❌ Error updating loyalty points: {e}")
+            print(f"❌ Error updating GST info: {e}")
             return False
     
-    def update_outstanding_balance(
+    def update_customer_status(
         self, 
-        customer_id: str, 
-        amount: float
+        contact_id: int, 
+        status: str
     ) -> bool:
-        """Update customer's outstanding balance"""
+        """Update customer status (Active/Inactive)"""
         try:
             query = f"""
-                UPDATE customers
-                SET outstanding_balance = outstanding_balance + {amount},
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = '{customer_id}'
+                UPDATE customer_master
+                SET "Status" = '{status}',
+                    "Last Modified Time" = '{datetime.utcnow().isoformat()}'
+                WHERE "Contact ID" = {contact_id}
             """
             
-            return self.crud.execute_query(query)
+            return self.crud.execute_query_new(query)
             
         except Exception as e:
-            print(f"❌ Error updating outstanding balance: {e}")
+            print(f"❌ Error updating customer status: {e}")
             return False
+    
+    def get_customers_by_location(
+        self, 
+        state: Optional[str] = None, 
+        city: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Get customers by location"""
+        where_clauses = ['"Status" = \'Active\'']
+        
+        if state:
+            where_clauses.append(f'"Billing State" ILIKE \'%{state}%\'')
+        
+        if city:
+            where_clauses.append(f'"Billing City" ILIKE \'%{city}%\'')
+        
+        where_str = " AND ".join(where_clauses)
+        query = f"""
+            SELECT * FROM customer_master 
+            WHERE {where_str}
+            ORDER BY "Contact Name"
+            LIMIT 100
+        """
+        
+        df = self.crud.execute_query(query, return_data=True)
+        return df.to_dict('records')
