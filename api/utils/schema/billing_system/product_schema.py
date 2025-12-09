@@ -223,3 +223,108 @@ class PricingRecalculationResponse(BaseModel):
     variants_updated: int
     message: str
     errors: List[str] = []
+
+
+# ============================================================================
+# NYKA PRODUCT FILTER SCHEMAS
+# ============================================================================
+
+class PriceRangeFilter(BaseModel):
+    """Price range filter"""
+    min_price: Optional[Decimal] = Field(None, ge=0, description="Minimum price")
+    max_price: Optional[Decimal] = Field(None, ge=0, description="Maximum price")
+
+
+class NykaProductFilters(BaseModel):
+    """Filters for Nyka product fetching"""
+    
+    # Pagination
+    page: int = Field(default=1, ge=1, description="Page number")
+    page_size: int = Field(default=20, ge=1, le=100, description="Items per page")
+    
+    # Basic filters
+    search_query: Optional[str] = Field(None, description="Search in product title/description")
+    vendor: Optional[str] = Field(None, description="Filter by vendor/brand")
+    product_type: Optional[str] = Field(None, description="Filter by product type")
+    tags: Optional[List[str]] = Field(None, description="Filter by tags (any match)")
+    
+    # Price filters
+    price_range: Optional[PriceRangeFilter] = None
+    
+    # Category filters
+    material: Optional[str] = Field(None, description="Filter by material (Alloy, Silver, etc.)")
+    plating: Optional[str] = Field(None, description="Filter by plating (Gold, Rhodium, etc.)")
+    style: Optional[str] = Field(None, description="Filter by jewelry style")
+    occasion: Optional[str] = Field(None, description="Filter by occasion")
+    segment: Optional[str] = Field(None, description="Filter by segment (Premium, Basic)")
+    
+    # Source system filters
+    source: Optional[str] = Field(None, description="Filter by source: 'shopify', 'zakya', 'both'", pattern="^(shopify|zakya|both)$")
+    has_images: Optional[bool] = Field(None, description="Filter products with/without images")
+    stock_available: Optional[bool] = Field(None, description="Filter by stock availability")
+    
+    # Date filters
+    created_after: Optional[datetime] = Field(None, description="Filter products created after this date")
+    updated_after: Optional[datetime] = Field(None, description="Filter products updated after this date")
+    
+    # Sorting
+    sort_by: Optional[str] = Field(
+        default="created_at", 
+        description="Sort field: 'created_at', 'price', 'title', 'vendor'",
+        pattern="^(created_at|price|title|vendor)$"
+    )
+    sort_order: Optional[str] = Field(
+        default="desc", 
+        description="Sort order: 'asc' or 'desc'",
+        pattern="^(asc|desc)$"
+    )
+
+
+class NykaProductCard(BaseModel):
+    """Product card format for UI display - matches billing system format"""
+    
+    # Basic product info
+    id: str = Field(..., description="Product identifier (SKU or product ID)")
+    title: str = Field(..., description="Product title")
+    description: Optional[str] = Field(None, description="Product description")
+    vendor: Optional[str] = Field(None, description="Brand/vendor name")
+    product_type: Optional[str] = Field(None, description="Product category")
+    tags: List[str] = Field(default=[], description="Product tags")
+    
+    # Pricing
+    price: Decimal = Field(..., description="Product price")
+    compare_at_price: Optional[Decimal] = Field(None, description="Compare at price for discounts")
+    
+    # Inventory
+    sku: str = Field(..., description="Product SKU")
+    stock_quantity: Optional[int] = Field(None, description="Available stock")
+    
+    # Media
+    image_url: Optional[str] = Field(None, description="Primary product image URL")
+    image_alt_text: Optional[str] = Field(None, description="Image alt text")
+    
+    # Attributes (for jewelry)
+    material: Optional[str] = Field(None, description="Material type")
+    plating: Optional[str] = Field(None, description="Plating type")
+    style: Optional[str] = Field(None, description="Jewelry style")
+    color: Optional[str] = Field(None, description="Color")
+    size: Optional[str] = Field(None, description="Size")
+    
+    # Source tracking
+    source_system: str = Field(..., description="Source: 'shopify', 'zakya', or 'both'")
+    data_quality_score: Optional[float] = Field(None, ge=0, le=1, description="Data completeness score")
+    
+    # Timestamps
+    created_at: Optional[datetime] = Field(None, description="Created timestamp")
+    updated_at: Optional[datetime] = Field(None, description="Updated timestamp")
+
+
+class NykaProductListResponse(BaseModel):
+    """Response format matching billing system pattern"""
+    total: int = Field(..., description="Total number of products matching filters")
+    products: List[NykaProductCard] = Field(..., description="List of product cards")
+    page: int = Field(..., description="Current page number")
+    page_size: int = Field(..., description="Items per page")
+    total_pages: int = Field(..., description="Total number of pages")
+    filters_applied: dict = Field(..., description="Summary of applied filters")
+    data_summary: dict = Field(default={}, description="Additional metadata about the results")

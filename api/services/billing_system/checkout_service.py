@@ -6,7 +6,7 @@ from uuid import uuid4
 from datetime import datetime, date
 from decimal import Decimal
 
-from core.database import PostgresCRUD
+from core.database import db
 from core.config import settings
 from utils.schema.billing_system.checkout_schema import CheckoutRequest, PaymentCreate
 
@@ -15,7 +15,7 @@ class CheckoutService:
     """Service for checkout and payment processing"""
     
     def __init__(self):
-        self.crud = PostgresCRUD(settings.POSTGRES_URI)
+        self.crud = db
     
     def process_checkout(
         self, 

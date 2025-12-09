@@ -1,7 +1,7 @@
 """
 Pydantic schemas for Checkout System
 """
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, model_validator
 from typing import Optional, List
 from datetime import datetime, date
 from decimal import Decimal
@@ -61,11 +61,45 @@ class CustomerUpdate(BaseModel):
 # ============================================================================
 
 class CartItemBase(BaseModel):
-    """Base cart item schema"""
-    variant_id: str = Field(..., description="Product variant ID")
-    stock_item_id: Optional[str] = Field(None, description="Specific serial item")
+    """Base cart item schema - simplified polymorphic approach"""
+    # Polymorphic approach - either specify item_type + item_id OR let system auto-detect
+    item_type: Optional[str] = Field(None, description="'real_jewelry' or 'zakya_product'")
+    item_id: Optional[str] = Field(None, description="UUID for real jewelry, item_id for Zakya")
+    
+    # Auto-detection alternatives
+    sku: Optional[str] = Field(None, description="Auto-detect by SKU")
+    
+    # Legacy support (will be auto-converted)
+    variant_id: Optional[str] = Field(None, description="Legacy: Real jewelry variant ID")
+    zakya_item_id: Optional[str] = Field(None, description="Legacy: Zakya item ID")
+    
+    # Common fields
     quantity: int = Field(default=1, ge=1)
     discount_percent: Decimal = Field(default=0, ge=0, le=100)
+    notes: Optional[str] = None
+    
+    # Optional price validation/fallback
+    expected_price: Optional[Decimal] = Field(None, description="Expected price for validation")
+    
+    # Optional for real jewelry
+    serial_no: Optional[str] = Field(None, description="Serial number for real jewelry")
+    
+    @model_validator(mode='after')
+    def validate_item_identifier(self):
+        """At least one identifier must be provided"""
+        identifiers = [self.item_id, self.sku, self.variant_id, self.zakya_item_id]
+        if not any(identifiers):
+            raise ValueError("Must provide one of: item_type+item_id, sku, variant_id, or zakya_item_id")
+        
+        # Auto-convert legacy fields
+        if self.variant_id and not self.item_id:
+            self.item_type = 'real_jewelry'
+            self.item_id = self.variant_id
+        elif self.zakya_item_id and not self.item_id:
+            self.item_type = 'zakya_product' 
+            self.item_id = self.zakya_item_id
+        
+        return self
 
 
 class CartItemCreate(CartItemBase):
@@ -74,20 +108,39 @@ class CartItemCreate(CartItemBase):
 
 
 class CartItemResponse(BaseModel):
-    """Schema for cart item response"""
+    """Schema for cart item response - matches new polymorphic schema"""
     id: str
     cart_id: str
-    variant_id: str
-    stock_item_id: Optional[str]
+    
+    # Polymorphic item identification
+    item_type: str = Field(..., description="'real_jewelry' or 'zakya_product'")
+    item_id: str = Field(..., description="UUID for real jewelry, item_id for Zakya")
+    
+    # Product details (cached)
     product_name: str
     sku: Optional[str]
-    serial_no: Optional[str]
+    
+    # Quantity and pricing
     quantity: int
     unit_price: Decimal
     discount_percent: Decimal
     discount_amount: Decimal
     line_total: Decimal
+    
+    # Real jewelry specific (None for Zakya)
+    serial_no: Optional[str] = None
+    metal_weight_g: Optional[Decimal] = None
+    purity_k: Optional[Decimal] = None
+    metal_breakdown: Optional[dict] = None
+    stone_breakdown: Optional[dict] = None
+    
+    # Zakya specific (None for real jewelry)
+    zakya_stock_available: Optional[Decimal] = None
+    
+    # Metadata
+    notes: Optional[str] = None
     created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
