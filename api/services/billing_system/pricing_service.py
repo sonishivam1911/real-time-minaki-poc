@@ -4,7 +4,7 @@ Pricing Service - Business logic for pricing recalculation
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
-from core.database import PostgresCRUD
+from core.database import db
 from core.config import settings
 from utils.schema.billing_system.product_schema import MetalRateUpdate
 
@@ -13,7 +13,7 @@ class PricingService:
     """Service for pricing-related business logic"""
     
     def __init__(self):
-        self.crud = PostgresCRUD(settings.POSTGRES_URI)
+        self.crud = db
     
     def recalculate_pricing(
         self,
@@ -39,11 +39,11 @@ class PricingService:
             if variant_ids:
                 variant_ids_str = "', '".join(variant_ids)
                 variant_query = f"""
-                    SELECT id FROM product_variants 
+                    SELECT id FROM billing_system_product_variants 
                     WHERE id IN ('{variant_ids_str}')
                 """
             else:
-                variant_query = "SELECT id FROM product_variants"
+                variant_query = "SELECT id FROM billing_system_product_variants"
             
             variants_df = self.crud.execute_query(variant_query, return_data=True)
             
@@ -128,18 +128,15 @@ class PricingService:
     def _recalculate_variant_pricing(self, variant_id: str) -> None:
         """Recalculate pricing breakdown for a single variant"""
         # Get metal components
-        metal_query = f"""
+        # Get metal components from the variant
+        query = f"""
             SELECT 
-                net_weight_g,
-                metal_rate_per_g,
-                making_charge_per_g,
-                making_charge_flat,
-                gross_weight_g,
-                wastage_percent
-            FROM metal_components
+                metal_type,
+                net_weight_g
+            FROM billing_system_metal_components
             WHERE variant_id = '{variant_id}'
         """
-        metal_df = self.crud.execute_query(metal_query, return_data=True)
+        metal_df = self.crud.execute_query(query, return_data=True)
         
         # Calculate metal totals
         total_metal_value = 0
@@ -163,7 +160,7 @@ class PricingService:
         # Get diamond components
         diamond_query = f"""
             SELECT carat, stone_price_per_carat
-            FROM diamond_components
+            FROM billing_system_diamond_components
             WHERE variant_id = '{variant_id}'
         """
         diamond_df = self.crud.execute_query(diamond_query, return_data=True)

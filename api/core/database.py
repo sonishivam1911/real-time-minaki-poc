@@ -7,8 +7,47 @@ from core.config import settings
 from utils.constants import OPERATORS
 
 class PostgresCRUD:
-    def __init__(self, db_uri):
-        self.engine = create_engine(db_uri)
+    _instance = None
+    _engine = None
+
+    def __new__(cls, db_uri=None):
+        if cls._instance is None:
+            cls._instance = super(PostgresCRUD, cls).__new__(cls)
+            # Initialize the engine only once
+            if db_uri:
+                cls._engine = create_engine(
+                    db_uri,
+                    pool_size=3,          # Reduced pool size for Supabase
+                    max_overflow=5,       # Reduced overflow
+                    pool_timeout=30,      # Timeout to get connection from pool
+                    pool_recycle=1800,    # Recycle connections after 30 minutes
+                    pool_pre_ping=True,   # Validate connections before use
+                    connect_args={
+                        "connect_timeout": 30,
+                        "application_name": "billing_system"
+                    }
+                )
+        return cls._instance
+
+    def __init__(self, db_uri=None):
+        # Only set engine if it hasn't been set yet
+        if self._engine is None and db_uri:
+            self._engine = create_engine(
+                db_uri,
+                pool_size=3,          # Reduced pool size for Supabase
+                max_overflow=5,       # Reduced overflow
+                pool_timeout=30,      # Timeout to get connection from pool
+                pool_recycle=1800,    # Recycle connections after 30 minutes
+                pool_pre_ping=True,   # Validate connections before use
+                connect_args={
+                    "connect_timeout": 30,
+                    "application_name": "billing_system"
+                }
+            )
+
+    @property
+    def engine(self):
+        return self._engine
     
     def create_table(self, table_name, dataframe):
         """Create a table in PostgreSQL from a pandas DataFrame."""
@@ -156,7 +195,7 @@ class PostgresCRUD:
     def create_update_statements(self, df, table_name, id_columns):
         """
         Generate SQL UPDATE statements for each row in a DataFrame.
-        
+        `
         Args:
             df (pandas.DataFrame): DataFrame containing the data to update
             table_name (str): Name of the target database table
@@ -248,13 +287,33 @@ class PostgresCRUD:
 
 
     
+    def insert_record(self, table_name, record_data):
+        """Insert a single record into a table."""
+        try:
+            # Convert record data to DataFrame
+            import pandas as pd
+            df = pd.DataFrame([record_data])
+            
+            # Generate insert statement
+            insert_statements = self.create_insert_statements(df, table_name)
+            
+            if insert_statements:
+                # Execute the insert statement
+                self.execute_query_new(insert_statements[0])
+                return True
+            return False
+        except Exception as e:
+            print(f"Error inserting record into '{table_name}': {e}")
+            return False
+
     # Fixed function name to match what's used in invoice_service.py
     def delete_record(self, table_name, condition):
         """Delete records from a table based on a condition."""
         try:
             query = f"DELETE FROM {table_name} WHERE {condition}"
             with self.engine.connect() as connection:
-                connection.execute(text(query))
+                with connection.begin():
+                    connection.execute(text(query))
             return True
         except Exception as e:
             print(f"Error deleting records from '{table_name}': {e}")
