@@ -1,5 +1,6 @@
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 # Import routers
 from controller.shopify.product.metafield import controller as metafields
@@ -29,6 +30,14 @@ app = FastAPI(
     title="PO PDF Processor API", 
     version="1.0.0",
     description="API for Shopify, Zakya, and WhatsApp-Slack integrations"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://minaki-billing-system.onrender.com"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(
