@@ -447,38 +447,43 @@ class ProductService:
         # Insert or update pricing breakdown
         pricing_record = {
             'variant_id': variant_id,
-            'total_metal_value': float(total_metal_value),
-            'total_stone_value': float(total_stone_value),
-            'total_making_charges': float(total_making_charges),
-            'total_wastage_charges': float(total_wastage_charges),
-            'total_discounts': 0,
-            'tax_rate_percent': 0,
-            'tax_amount': 0,
-            'final_cost': float(final_cost),
-            'suggested_retail_price': float(suggested_retail),
-            'last_calculated_at': datetime.utcnow()
+            'metal_cost': float(total_metal_value),
+            'stone_cost': float(total_stone_value),
+            'making_charges': float(total_making_charges),
+            'wastage_charges': float(total_wastage_charges),
+            'other_charges': 0,
+            'total_cost': float(final_cost),
+            'margin_percent': 0,
+            'margin_amount': 0,
+            'selling_price': float(suggested_retail),
+            'gst_rate_percent': 0,
+            'gst_amount': 0,
+            'final_price': float(suggested_retail),
+            'created_at': datetime.utcnow(),
+            'updated_at': datetime.utcnow()
         }
         
         # Check if exists
         check_query = f"""
-            SELECT variant_id FROM billing_system_variant_pricing_breakdown 
+            SELECT variant_id FROM billing_system_product_pricing 
             WHERE variant_id = '{variant_id}'
         """
         exists = self.crud.execute_query(check_query, return_data=True)
         
         if exists.empty:
-            self.crud.insert_record('billing_system_variant_pricing_breakdown', pricing_record)
+            self.crud.insert_record('billing_system_product_pricing', pricing_record)
         else:
             # Update existing
             update_query = f"""
-                UPDATE billing_system_variant_pricing_breakdown
-                SET total_metal_value = {pricing_record['total_metal_value']},
-                    total_stone_value = {pricing_record['total_stone_value']},
-                    total_making_charges = {pricing_record['total_making_charges']},
-                    total_wastage_charges = {pricing_record['total_wastage_charges']},
-                    final_cost = {pricing_record['final_cost']},
-                    suggested_retail_price = {pricing_record['suggested_retail_price']},
-                    last_calculated_at = CURRENT_TIMESTAMP
+                UPDATE billing_system_product_pricing
+                SET metal_cost = {pricing_record['metal_cost']},
+                    stone_cost = {pricing_record['stone_cost']},
+                    making_charges = {pricing_record['making_charges']},
+                    wastage_charges = {pricing_record['wastage_charges']},
+                    total_cost = {pricing_record['total_cost']},
+                    selling_price = {pricing_record['selling_price']},
+                    final_price = {pricing_record['final_price']},
+                    updated_at = CURRENT_TIMESTAMP
                 WHERE variant_id = '{variant_id}'
             """
             self.crud.execute_query(update_query)
@@ -535,7 +540,7 @@ class ProductService:
             
             # Get pricing breakdown
             pricing_query = f"""
-                SELECT * FROM billing_system_variant_pricing_breakdown 
+                SELECT * FROM billing_system_product_pricing 
                 WHERE variant_id = '{variant_dict['id']}'
             """
             pricing_df = self.crud.execute_query(pricing_query, return_data=True)

@@ -24,3 +24,8 @@ xlrd
 duckduckgo-search
 ddgs
 pydantic[email]
+reportlab
+weasyprint
+python-multipart
+aiofiles
+twilio

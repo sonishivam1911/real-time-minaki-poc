@@ -76,16 +76,29 @@ class PostgresCRUD:
     def execute_query(self, query, return_data=False):
         """Execute a SQL query."""
         try:
-            with self.engine.connect() as connection:
+            # Use transaction connection if available
+            if hasattr(self, '_transaction_connection') and self._transaction_connection:
                 if return_data:
-                    cursor_result = connection.execute(text(query))
+                    cursor_result = self._transaction_connection.execute(text(query))
                     rows = cursor_result.fetchall()
                     columns = cursor_result.keys()
                     df = pd.DataFrame(rows, columns=columns)
                     return df
                 else:
-                    connection.execute(text(query))
+                    self._transaction_connection.execute(text(query))
                     return True
+            else:
+                # Use regular connection
+                with self.engine.connect() as connection:
+                    if return_data:
+                        cursor_result = connection.execute(text(query))
+                        rows = cursor_result.fetchall()
+                        columns = cursor_result.keys()
+                        df = pd.DataFrame(rows, columns=columns)
+                        return df
+                    else:
+                        connection.execute(text(query))
+                        return True
         except Exception as e:
             print(f"Error executing query: {e}")
             return False if not return_data else pd.DataFrame()
@@ -159,7 +172,7 @@ class PostgresCRUD:
                                 list_elements.append("NULL")
                             elif isinstance(item, str):
                                 safe_item = item.replace("'", "''")
-                                list_elements.append(f'"{safe_item}"')
+                                list_elements.append(f"'{safe_item}'")
                             else:
                                 list_elements.append(str(item))
                         
@@ -250,7 +263,7 @@ class PostgresCRUD:
                                 list_elements.append("NULL")
                             elif isinstance(item, str):
                                 safe_item = item.replace("'", "''")
-                                list_elements.append(f'"{safe_item}"')
+                                list_elements.append(f"'{safe_item}'")
                             else:
                                 list_elements.append(str(item))
                         
@@ -298,8 +311,12 @@ class PostgresCRUD:
             insert_statements = self.create_insert_statements(df, table_name)
             
             if insert_statements:
-                # Execute the insert statement
-                self.execute_query_new(insert_statements[0])
+                # Use transaction connection if available, otherwise create a new one
+                if hasattr(self, '_transaction_connection') and self._transaction_connection:
+                    self._transaction_connection.execute(text(insert_statements[0]))
+                else:
+                    # Execute the insert statement
+                    self.execute_query_new(insert_statements[0])
                 return True
             return False
         except Exception as e:
@@ -349,6 +366,39 @@ class PostgresCRUD:
 
 
         return "WHERE " + " AND ".join(clauses) if len(clauses) > 0 else clause
+
+    def insert(self, table_name, record_data):
+        """Insert a single record into a table."""
+        return self.insert_record(table_name, record_data)
+
+    def begin_transaction(self):
+        """Begin a database transaction."""
+        # For SQLAlchemy, transactions are handled by connection context managers
+        # This method creates a connection that will be used for the transaction
+        if not hasattr(self, '_transaction_connection'):
+            self._transaction_connection = self.engine.connect()
+            self._transaction = self._transaction_connection.begin()
+    
+    def commit_transaction(self):
+        """Commit the current transaction."""
+        if hasattr(self, '_transaction') and self._transaction:
+            self._transaction.commit()
+            self._cleanup_transaction()
+    
+    def rollback_transaction(self):
+        """Rollback the current transaction."""
+        if hasattr(self, '_transaction') and self._transaction:
+            self._transaction.rollback()
+            self._cleanup_transaction()
+    
+    def _cleanup_transaction(self):
+        """Clean up transaction resources."""
+        if hasattr(self, '_transaction_connection') and self._transaction_connection:
+            self._transaction_connection.close()
+        if hasattr(self, '_transaction'):
+            delattr(self, '_transaction')
+        if hasattr(self, '_transaction_connection'):
+            delattr(self, '_transaction_connection')
 
 
 # Create an instance of the database class

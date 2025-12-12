@@ -1,6 +1,8 @@
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+import time
+import json
 
 # Import routers
 from controller.shopify.product.metafield import controller as metafields
@@ -25,6 +27,7 @@ from controller.billing_system.cart import controller as cart_controller
 from controller.billing_system.checkout import controller as checkout_controller
 from controller.billing_system.customer import controller as customer_controller
 from controller.billing_system.invoice import controller as invoice_controller
+from controller.billing_system.upload_inventory import controller as upload_inventory_controller
 
 app = FastAPI(
     title="PO PDF Processor API", 
@@ -34,11 +37,43 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://minaki-billing-system.onrender.com"],
+    allow_origins=["*"],  # Allow all origins for development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],  # Expose all headers
 )
+
+# Add logging middleware to debug requests/responses
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    
+    # Log incoming request
+    print(f"🔵 Incoming {request.method} {request.url}")
+    print(f"🔵 Headers: {dict(request.headers)}")
+    
+    # Get request body if it exists
+    if request.method in ["POST", "PUT", "PATCH"]:
+        try:
+            body = await request.body()
+            if body:
+                print(f"🔵 Body: {body.decode()}")
+        except:
+            pass
+    
+    # Process request
+    response = await call_next(request)
+    
+    # Calculate processing time
+    process_time = time.time() - start_time
+    
+    # Log response
+    print(f"🟢 Response {response.status_code} for {request.method} {request.url}")
+    print(f"🟢 Processing time: {process_time:.4f}s")
+    print(f"🟢 Response headers: {dict(response.headers)}")
+    
+    return response
 
 app.include_router(
     products.router,
@@ -176,6 +211,12 @@ app.include_router(
     invoice_controller.router,
     prefix="/billing_system/api/invoices",
     tags=["Billing System - Invoices"]
+)
+
+app.include_router(
+    upload_inventory_controller.router,
+    prefix="/billing_system",
+    tags=["Billing System - Upload Inventory"]
 )
 
 @app.get("/", tags=["System"])

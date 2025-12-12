@@ -104,7 +104,7 @@ async def get_variant_pricing_breakdown(
     - Suggested retail price
     """
     query = f"""
-        SELECT * FROM variant_pricing_breakdown
+        SELECT * FROM billing_system_product_pricing
         WHERE variant_id = '{variant_id}'
     """
     
@@ -130,7 +130,7 @@ async def get_variant_pricing_breakdown(
             making_charge_per_g,
             making_charge_flat,
             (net_weight_g * making_charge_per_g + making_charge_flat) as total_making
-        FROM metal_components
+        FROM billing_system_metal_components
         WHERE variant_id = '{variant_id}'
     """
     metal_df = service.crud.execute_query(metal_query, return_data=True)
@@ -146,7 +146,7 @@ async def get_variant_pricing_breakdown(
             color_grade,
             stone_price_per_carat,
             (carat * stone_price_per_carat) as stone_value
-        FROM diamond_components
+        FROM billing_system_diamond_components
         WHERE variant_id = '{variant_id}'
     """
     diamond_df = service.crud.execute_query(diamond_query, return_data=True)

@@ -42,7 +42,7 @@ class CartService:
                 'status': 'active',
                 'subtotal': 0,
                 'discount_amount': 0,
-                'tax_rate_percent': 0,
+                'tax_rate_percent': 3,
                 'tax_amount': 0,
                 'total_amount': 0,
                 'created_at': datetime.utcnow(),
@@ -133,7 +133,7 @@ class CartService:
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = '{existing_id}'
                 """
-                self.crud.execute_query(update_query)
+                self.crud.execute_query_new(update_query)
                 cart_item_id = existing_id
                 print(f"📝 Updated existing cart item quantity to {new_quantity}")
             else:
@@ -239,7 +239,7 @@ class CartService:
                 WHERE id = '{cart_item_id}'
             """
             
-            self.crud.execute_query(update_query)
+            self.crud.execute_query_new(update_query)
             
             # Recalculate cart totals
             self._recalculate_cart_totals(cart_id)
@@ -351,7 +351,7 @@ class CartService:
         """Remove all items from cart"""
         try:
             query = f"DELETE FROM billing_system_cart_items WHERE cart_id = '{cart_id}'"
-            self.crud.execute_query(query)
+            self.crud.execute_query_new(query)
             
             # Reset cart totals
             self._recalculate_cart_totals(cart_id)
@@ -627,7 +627,7 @@ class CartService:
                 SET discount_amount = {discount_amount}
                 WHERE id = '{cart_id}'
             """
-            self.crud.execute_query(update_query)
+            self.crud.execute_query_new(update_query)
             
             # Recalculate totals
             self._recalculate_cart_totals(cart_id)
@@ -655,6 +655,7 @@ class CartService:
             WHERE cart_id = '{cart_id}'
         """
         items_df = self.crud.execute_query(items_query, return_data=True)
+        print(f"Reclalculating totals for cart {cart_id} and items_df: {items_df}")
         
         subtotal = float(items_df.iloc[0]['subtotal']) if not items_df.empty else 0
         
@@ -684,4 +685,6 @@ class CartService:
             WHERE id = '{cart_id}'
         """
         
-        self.crud.execute_query(update_query)
+        print(f"Updating cart totals with query: {update_query}")
+        
+        self.crud.execute_query_new(update_query)

@@ -1,6 +1,7 @@
 """
 Cart Controller - API endpoints for shopping cart management
 """
+import traceback
 from fastapi import APIRouter, HTTPException, Depends, Path
 from typing import Optional
 
@@ -59,8 +60,12 @@ async def get_cart(
     - All items in cart
     - Calculated totals (subtotal, discount, tax, total)
     """
-    service = CartService()
-    cart = service.get_cart(cart_id)
+    try:
+        service = CartService()
+        cart = service.get_cart(cart_id)
+    except Exception as e:
+        print(f"❌ Error fetching cart {cart_id}: {e}")
+        print(f"{traceback.format_exc()}")
     
     if not cart:
         raise HTTPException(
@@ -199,6 +204,37 @@ async def update_cart_item(
       "discount_percent": 10
     }
     ```
+    """
+    service = CartService()
+    result = service.update_cart_item(cart_id, item_id, update_data)
+    
+    if not result['success']:
+        raise HTTPException(
+            status_code=400,
+            detail=result.get('error', 'Failed to update item')
+        )
+    
+    return result
+
+
+@router.put("/{cart_id}/items/{item_id}", response_model=dict)
+async def update_cart_item_put(
+    cart_id: str = Path(..., description="Cart ID"),
+    item_id: str = Path(..., description="Cart item ID"),
+    update_data: CartItemUpdate = ...,
+):
+    """
+    Update cart item quantity or discount (PUT method).
+    
+    **Example Request:**
+    ```json
+    {
+      "quantity": 2,
+      "discount_percent": 10
+    }
+    ```
+    
+    Note: This endpoint supports the same functionality as PATCH for frontend compatibility.
     """
     service = CartService()
     result = service.update_cart_item(cart_id, item_id, update_data)

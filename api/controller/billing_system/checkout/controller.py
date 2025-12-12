@@ -1,6 +1,7 @@
 """
 Checkout Controller - API endpoints for checkout and payment processing
 """
+import traceback
 from fastapi import APIRouter, HTTPException, Depends
 
 from utils.schema.billing_system.checkout_schema import (
@@ -79,8 +80,12 @@ async def process_checkout(
     }
     ```
     """
-    service = CheckoutService()
-    result = service.process_checkout(checkout_data)
+    try:
+        service = CheckoutService()
+        result = service.process_checkout(checkout_data)
+    except Exception as e:
+        print(f"❌ Error processing checkout for cart {checkout_data.cart_id}: {e}")
+        print(f"{traceback.format_exc()}")
     
     if not result['success']:
         raise HTTPException(

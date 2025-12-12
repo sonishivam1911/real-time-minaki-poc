@@ -88,7 +88,7 @@ class PricingService:
         # Update gold 22k
         if metal_rates.gold_22k:
             query = f"""
-                UPDATE metal_components
+                UPDATE billing_system_metal_components
                 SET metal_rate_per_g = {float(metal_rates.gold_22k)}
                 WHERE metal_type = 'gold' AND purity_k = 22.00
                 {where_clause}
@@ -98,7 +98,7 @@ class PricingService:
         # Update gold 18k
         if metal_rates.gold_18k:
             query = f"""
-                UPDATE metal_components
+                UPDATE billing_system_metal_components
                 SET metal_rate_per_g = {float(metal_rates.gold_18k)}
                 WHERE metal_type = 'gold' AND purity_k = 18.00
                 {where_clause}
@@ -108,7 +108,7 @@ class PricingService:
         # Update silver
         if metal_rates.silver:
             query = f"""
-                UPDATE metal_components
+                UPDATE billing_system_metal_components
                 SET metal_rate_per_g = {float(metal_rates.silver)}
                 WHERE metal_type = 'silver'
                 {where_clause}
@@ -118,7 +118,7 @@ class PricingService:
         # Update platinum
         if metal_rates.platinum:
             query = f"""
-                UPDATE metal_components
+                UPDATE billing_system_metal_components
                 SET metal_rate_per_g = {float(metal_rates.platinum)}
                 WHERE metal_type = 'platinum'
                 {where_clause}
@@ -183,22 +183,23 @@ class PricingService:
         
         # Update pricing breakdown
         update_query = f"""
-            UPDATE variant_pricing_breakdown
+            UPDATE billing_system_product_pricing
             SET 
-                total_metal_value = {float(total_metal_value)},
-                total_stone_value = {float(total_stone_value)},
-                total_making_charges = {float(total_making_charges)},
-                total_wastage_charges = {float(total_wastage_charges)},
-                final_cost = {float(final_cost)},
-                suggested_retail_price = {float(suggested_retail)},
-                last_calculated_at = CURRENT_TIMESTAMP
+                metal_cost = {float(total_metal_value)},
+                stone_cost = {float(total_stone_value)},
+                making_charges = {float(total_making_charges)},
+                wastage_charges = {float(total_wastage_charges)},
+                total_cost = {float(final_cost)},
+                selling_price = {float(suggested_retail)},
+                final_price = {float(suggested_retail)},
+                updated_at = CURRENT_TIMESTAMP
             WHERE variant_id = '{variant_id}'
         """
         self.crud.execute_query(update_query)
         
         # Update variant base_cost
         update_variant_query = f"""
-            UPDATE product_variants
+            UPDATE billing_system_product_variants
             SET base_cost = {float(final_cost)},
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = '{variant_id}'
@@ -212,7 +213,7 @@ class PricingService:
                 metal_type,
                 purity_k,
                 AVG(metal_rate_per_g) as avg_rate
-            FROM metal_components
+            FROM billing_system_metal_components
             GROUP BY metal_type, purity_k
         """
         df = self.crud.execute_query(query, return_data=True)

@@ -1,6 +1,7 @@
 """
 Checkout Service - Business logic for checkout and payment processing
 """
+import traceback
 from typing import List, Optional, Dict, Any
 from uuid import uuid4
 from datetime import datetime, date
@@ -45,6 +46,7 @@ class CheckoutService:
                     'error': 'Cart is empty'
                 }
             
+            print(f"🛒 Processing checkout for cart {checkout_data.cart_id} with {cart} items.")
             # 2. Apply discount if provided
             if checkout_data.discount_code:
                 discount_result = self._apply_discount(
@@ -66,6 +68,8 @@ class CheckoutService:
             total_payment = sum(float(p.payment_amount) for p in checkout_data.payments)
             cart_total = float(cart['total_amount'])
             
+            print(f"💰 Cart total: {cart_total}, Total payment: {total_payment}")
+            
             if total_payment < cart_total:
                 return {
                     'success': False,
@@ -78,6 +82,7 @@ class CheckoutService:
                 return invoice_result
             
             invoice_id = invoice_result['invoice_id']
+            print(f"🧾 Created invoice {invoice_id} for cart {checkout_data.cart_id}.")
             
             # 6. Record payments
             payment_result = self._record_payments(
@@ -113,6 +118,7 @@ class CheckoutService:
             
         except Exception as e:
             print(f"❌ Error processing checkout: {e}")
+            print(f"{traceback.format_exc()}")
             return {
                 'success': False,
                 'error': str(e)
@@ -120,7 +126,7 @@ class CheckoutService:
     
     def _get_cart(self, cart_id: str) -> Optional[Dict[str, Any]]:
         """Get cart with items"""
-        cart_query = f"SELECT * FROM carts WHERE id = '{cart_id}'"
+        cart_query = f"SELECT * FROM billing_system_carts WHERE id = '{cart_id}'"
         cart_df = self.crud.execute_query(cart_query, return_data=True)
         
         if cart_df.empty:
@@ -128,7 +134,7 @@ class CheckoutService:
         
         cart = cart_df.iloc[0].to_dict()
         
-        items_query = f"SELECT * FROM cart_items WHERE cart_id = '{cart_id}'"
+        items_query = f"SELECT * FROM billing_system_cart_items WHERE cart_id = '{cart_id}'"
         items_df = self.crud.execute_query(items_query, return_data=True)
         
         cart['items'] = items_df.to_dict('records')
@@ -139,7 +145,7 @@ class CheckoutService:
         """Apply discount code"""
         # Get discount
         discount_query = f"""
-            SELECT * FROM discounts 
+            SELECT * FROM billing_system_discounts 
             WHERE discount_code = '{discount_code}'
             AND is_active = true
         """
@@ -154,7 +160,7 @@ class CheckoutService:
         discount = discount_df.iloc[0]
         
         # Get cart
-        cart_query = f"SELECT subtotal FROM carts WHERE id = '{cart_id}'"
+        cart_query = f"SELECT subtotal FROM billing_system_carts WHERE id = '{cart_id}'"
         cart_df = self.crud.execute_query(cart_query, return_data=True)
         subtotal = float(cart_df.iloc[0]['subtotal'])
         
@@ -169,7 +175,7 @@ class CheckoutService:
         
         # Update cart
         update_query = f"""
-            UPDATE carts
+            UPDATE billing_system_carts
             SET discount_amount = {discount_amount}
             WHERE id = '{cart_id}'
         """
@@ -180,7 +186,7 @@ class CheckoutService:
     def _update_cart_tax(self, cart_id: str, tax_rate: float):
         """Update cart tax rate and recalculate"""
         # Get cart
-        cart_query = f"SELECT subtotal, discount_amount FROM carts WHERE id = '{cart_id}'"
+        cart_query = f"SELECT subtotal, discount_amount FROM billing_system_carts WHERE id = '{cart_id}'"
         cart_df = self.crud.execute_query(cart_query, return_data=True)
         
         subtotal = float(cart_df.iloc[0]['subtotal'])
@@ -191,7 +197,7 @@ class CheckoutService:
         total_amount = taxable_amount + tax_amount
         
         update_query = f"""
-            UPDATE carts
+            UPDATE billing_system_carts
             SET tax_rate_percent = {tax_rate},
                 tax_amount = {tax_amount},
                 total_amount = {total_amount}
@@ -209,27 +215,31 @@ class CheckoutService:
             invoice_id = str(uuid4())
             invoice_number = self._generate_invoice_number()
             
+            print(f"Cart data : {cart}")
+            
             invoice_record = {
                 'id': invoice_id,
                 'invoice_number': invoice_number,
                 'customer_id': checkout_data.customer_id,
-                'cart_id': checkout_data.cart_id,
                 'invoice_date': datetime.utcnow(),
                 'due_date': None,
                 'subtotal': float(cart['subtotal']),
                 'discount_amount': float(cart['discount_amount']),
+                'discount_percent': 0,  # You might want to calculate this from cart data
                 'tax_rate_percent': float(cart['tax_rate_percent']),
                 'tax_amount': float(cart['tax_amount']),
                 'total_amount': float(cart['total_amount']),
-                'payment_status': 'pending',
+                'payment_status': 'unpaid',
                 'paid_amount': 0,
                 'outstanding_amount': float(cart['total_amount']),
                 'notes': checkout_data.notes,
                 'sales_person': checkout_data.sales_person,
-                'created_at': datetime.utcnow()
+                'branch': None,  # You can add branch info if needed
+                'created_at': datetime.utcnow(),
+                'updated_at': datetime.utcnow()
             }
             
-            self.crud.insert_record('sales_invoices', invoice_record)
+            self.crud.insert_record('billing_system_invoices_master', invoice_record)
             
             # Create invoice items
             for item in cart['items']:
@@ -238,20 +248,20 @@ class CheckoutService:
                 invoice_item_record = {
                     'id': invoice_item_id,
                     'invoice_id': invoice_id,
-                    'variant_id': item['variant_id'],
-                    'stock_item_id': item['stock_item_id'],
+                    'variant_id':  int(item.get('item_id')) if not item.get('variant_id') else int(item.get('variant_id')),  # Use new item_id or fallback to legacy variant_id
+                    'stock_item_id': item.get('stock_item_id'),
                     'product_name': item['product_name'],
-                    'sku': item['sku'],
-                    'serial_no': item['serial_no'],
+                    'sku': item.get('sku'),
+                    'serial_no': item.get('serial_no'),
                     'quantity': int(item['quantity']),
                     'unit_price': float(item['unit_price']),
-                    'discount_percent': float(item['discount_percent']),
-                    'discount_amount': float(item['discount_amount']),
+                    'discount_percent': float(item.get('discount_percent', 0)),
+                    'discount_amount': float(item.get('discount_amount', 0)),
                     'line_total': float(item['line_total']),
                     'created_at': datetime.utcnow()
                 }
                 
-                self.crud.insert_record('invoice_items', invoice_item_record)
+                self.crud.insert_record('billing_system_invoice_items', invoice_item_record)
             
             return {
                 'success': True,
@@ -269,7 +279,7 @@ class CheckoutService:
     def _generate_invoice_number(self) -> str:
         """Generate unique invoice number"""
         # Get count
-        count_query = "SELECT COUNT(*) as count FROM sales_invoices"
+        count_query = "SELECT COUNT(*) as count FROM billing_system_invoices_master"
         count_df = self.crud.execute_query(count_query, return_data=True)
         count = int(count_df.iloc[0]['count']) if not count_df.empty else 0
         
@@ -311,11 +321,11 @@ class CheckoutService:
                     'created_at': datetime.utcnow()
                 }
                 
-                self.crud.insert_record('payments', payment_record)
+                self.crud.insert_record('billing_system_payments', payment_record)
                 total_paid += float(payment.payment_amount)
             
             # Update invoice payment status
-            invoice_query = f"SELECT total_amount FROM sales_invoices WHERE id = '{invoice_id}'"
+            invoice_query = f"SELECT total_amount FROM billing_system_invoices_master WHERE id = '{invoice_id}'"
             invoice_df = self.crud.execute_query(invoice_query, return_data=True)
             total_amount = float(invoice_df.iloc[0]['total_amount'])
             
@@ -326,13 +336,14 @@ class CheckoutService:
             elif total_paid > 0:
                 payment_status = 'partial'
             else:
-                payment_status = 'pending'
+                payment_status = 'unpaid'
             
             update_query = f"""
-                UPDATE sales_invoices
+                UPDATE billing_system_invoices_master
                 SET paid_amount = {total_paid},
                     outstanding_amount = {outstanding},
-                    payment_status = '{payment_status}'
+                    payment_status = '{payment_status}',
+                    updated_at = CURRENT_TIMESTAMP
                 WHERE id = '{invoice_id}'
             """
             self.crud.execute_query(update_query)
@@ -348,7 +359,7 @@ class CheckoutService:
     
     def _generate_payment_number(self) -> str:
         """Generate unique payment number"""
-        count_query = "SELECT COUNT(*) as count FROM payments"
+        count_query = "SELECT COUNT(*) as count FROM billing_system_payments"
         count_df = self.crud.execute_query(count_query, return_data=True)
         count = int(count_df.iloc[0]['count']) if not count_df.empty else 0
         
@@ -358,10 +369,10 @@ class CheckoutService:
         """Update stock items to sold"""
         try:
             for item in cart_items:
-                if item['stock_item_id']:
+                if item.get('stock_item_id'):
                     # Update stock item status
                     update_query = f"""
-                        UPDATE stock_items
+                        UPDATE billing_system_stock_items
                         SET status = 'sold',
                             updated_at = CURRENT_TIMESTAMP
                         WHERE id = '{item['stock_item_id']}'
@@ -373,13 +384,13 @@ class CheckoutService:
                     movement_record = {
                         'id': movement_id,
                         'stock_item_id': item['stock_item_id'],
-                        'variant_id': item['variant_id'],
+                        'variant_id': item.get('item_id', item.get('variant_id')),  # Use new item_id or fallback
                         'movement_type': 'sale',
                         'qty': int(item['quantity']),
                         'reference': f"Sale",
                         'performed_at': datetime.utcnow()
                     }
-                    self.crud.insert_record('stock_movements', movement_record)
+                    self.crud.insert_record('billing_system_stock_movements', movement_record)
             
             return {'success': True}
             
@@ -393,7 +404,7 @@ class CheckoutService:
     def _update_cart_status(self, cart_id: str, status: str):
         """Update cart status"""
         query = f"""
-            UPDATE carts
+            UPDATE billing_system_carts
             SET status = '{status}',
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = '{cart_id}'
@@ -406,7 +417,7 @@ class CheckoutService:
         
         if points > 0:
             query = f"""
-                UPDATE customers
+                UPDATE billing_system_customers
                 SET loyalty_points = loyalty_points + {points}
                 WHERE id = '{customer_id}'
             """
@@ -416,7 +427,7 @@ class CheckoutService:
         """Hold transaction for later completion"""
         try:
             query = f"""
-                UPDATE carts
+                UPDATE billing_system_carts
                 SET status = 'held',
                     notes = '{notes if notes else ""}',
                     updated_at = CURRENT_TIMESTAMP
@@ -441,8 +452,8 @@ class CheckoutService:
         """Get all held transactions"""
         query = """
             SELECT c.*, cu.full_name as customer_name
-            FROM carts c
-            LEFT JOIN customers cu ON c.customer_id = cu.id
+            FROM billing_system_carts c
+            LEFT JOIN billing_system_customers cu ON c.customer_id = cu.id
             WHERE c.status = 'held'
             ORDER BY c.updated_at DESC
         """

@@ -316,7 +316,7 @@ class InvoiceResponse(BaseModel):
 class CheckoutRequest(BaseModel):
     """Schema for checkout request"""
     cart_id: str = Field(..., description="Cart ID to checkout")
-    customer_id: Optional[str] = Field(None, description="Customer ID")
+    customer_id: Optional[int] = Field(None, description="Customer ID")
     
     payments: List[PaymentCreate] = Field(..., description="Payment methods")
     

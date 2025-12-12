@@ -472,3 +472,244 @@ async def get_where_clause_builder_example():
             status_code=500,
             detail=f"Error generating example: {str(e)}"
         )
+
+
+# ============================================================================
+# ZAKYA PRODUCT UPDATE ENDPOINTS
+# ============================================================================
+
+@router.patch("/zakya/products/{sku}", response_model=dict)
+async def update_zakya_product(
+    sku: str = Path(..., description="Product SKU"),
+    name: Optional[str] = Query(None, description="Product name"),
+    rate: Optional[float] = Query(None, ge=0, description="Product price"),
+    stock_on_hand: Optional[float] = Query(None, ge=0, description="Stock quantity"),
+    category_name: Optional[str] = Query(None, description="Product category"),
+    brand: Optional[str] = Query(None, description="Product brand"),
+    description: Optional[str] = Query(None, description="Product description"),
+):
+    """
+    **✏️ Update Zakya Product by SKU**
+    
+    Update specific fields of a zakya product. Only provided fields will be updated.
+    
+    **Path Parameters:**
+    - **sku**: Product SKU to update
+    
+    **Query Parameters:**
+    - **name**: Product name
+    - **rate**: Product price
+    - **stock_on_hand**: Stock quantity
+    - **category_name**: Product category
+    - **brand**: Product brand
+    - **description**: Product description
+    
+    **Example:**
+    ```bash
+    PATCH /products/zakya/products/GR001?name=Updated Gold Ring&rate=55000&stock_on_hand=10
+    ```
+    """
+    try:
+        service = ProductService()
+        
+        # First check if product exists
+        existing = service.get_zakya_product_by_sku(sku=sku, with_image=False)
+        if not existing.get('success'):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Product with SKU {sku} not found"
+            )
+        
+        # Build update fields
+        updates = []
+        if name is not None:
+            escaped_name = name.replace("'", "''")
+            updates.append(f"name = '{escaped_name}'")
+        if rate is not None:
+            updates.append(f"rate = {rate}")
+        if stock_on_hand is not None:
+            updates.append(f"stock_on_hand = {stock_on_hand}")
+        if category_name is not None:
+            escaped_category = category_name.replace("'", "''")
+            updates.append(f"category_name = '{escaped_category}'")
+        if brand is not None:
+            escaped_brand = brand.replace("'", "''")
+            updates.append(f"brand = '{escaped_brand}'")
+        if description is not None:
+            escaped_description = description.replace("'", "''")
+            updates.append(f"description = '{escaped_description}'")
+        
+        if not updates:
+            raise HTTPException(
+                status_code=400,
+                detail="No fields to update"
+            )
+        
+        # Add last modified timestamp
+        updates.append("last_modified_time = CURRENT_TIMESTAMP")
+        updates_str = ", ".join(updates)
+        
+        # Execute update
+        escaped_sku = sku.replace("'", "''")
+        update_query = f"""
+            UPDATE zakya_products
+            SET {updates_str}
+            WHERE sku = '{escaped_sku}'
+        """
+        service.crud.execute_query(update_query)
+        
+        # Return updated product
+        updated_product = service.get_zakya_product_by_sku(sku=sku, with_image=True)
+        
+        return {
+            "success": True,
+            "message": f"Product {sku} updated successfully",
+            "product": updated_product.get('product')
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error updating product {sku}: {str(e)}"
+        )
+
+
+@router.patch("/zakya/products/bulk-update", response_model=dict)
+async def bulk_update_zakya_products(
+    update_data: dict = Body(..., description="Bulk update data")
+):
+    """
+    **🔄 Bulk Update Zakya Products**
+    
+    Update multiple products at once using various criteria.
+    
+    **Request Body Example:**
+    ```json
+    {
+        "filter_criteria": {
+            "brand": "Minaki",
+            "category_name": "Rings"
+        },
+        "updates": {
+            "rate": 50000,
+            "brand": "Updated Brand"
+        }
+    }
+    ```
+    
+    **Supported Filters:**
+    - **brand**: Filter by brand
+    - **category_name**: Filter by category
+    - **sku_list**: List of specific SKUs
+    - **price_min/max**: Price range
+    
+    **Supported Updates:**
+    - **rate**: Price
+    - **stock_on_hand**: Stock quantity
+    - **brand**: Brand name
+    - **category_name**: Category
+    - **description**: Description
+    """
+    try:
+        service = ProductService()
+        
+        filter_criteria = update_data.get('filter_criteria', {})
+        updates = update_data.get('updates', {})
+        
+        if not updates:
+            raise HTTPException(
+                status_code=400,
+                detail="No updates provided"
+            )
+        
+        # Build WHERE clause for filters
+        where_conditions = []
+        
+        if filter_criteria.get('brand'):
+            brand = filter_criteria['brand'].replace("'", "''")
+            where_conditions.append(f"brand = '{brand}'")
+        
+        if filter_criteria.get('category_name'):
+            category = filter_criteria['category_name'].replace("'", "''")
+            where_conditions.append(f"category_name = '{category}'")
+        
+        if filter_criteria.get('sku_list'):
+            sku_list = []
+            for sku in filter_criteria['sku_list']:
+                escaped_sku = sku.replace("'", "''")
+                sku_list.append(f"'{escaped_sku}'")
+            where_conditions.append(f"sku IN ({', '.join(sku_list)})")
+        
+        if filter_criteria.get('price_min'):
+            where_conditions.append(f"rate >= {filter_criteria['price_min']}")
+        
+        if filter_criteria.get('price_max'):
+            where_conditions.append(f"rate <= {filter_criteria['price_max']}")
+        
+        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+        
+        # Build SET clause for updates
+        set_conditions = []
+        
+        if updates.get('rate') is not None:
+            set_conditions.append(f"rate = {updates['rate']}")
+        
+        if updates.get('stock_on_hand') is not None:
+            set_conditions.append(f"stock_on_hand = {updates['stock_on_hand']}")
+        
+        if updates.get('brand'):
+            brand = updates['brand'].replace("'", "''")
+            set_conditions.append(f"brand = '{brand}'")
+        
+        if updates.get('category_name'):
+            category = updates['category_name'].replace("'", "''")
+            set_conditions.append(f"category_name = '{category}'")
+        
+        if updates.get('description'):
+            description = updates['description'].replace("'", "''")
+            set_conditions.append(f"description = '{description}'")
+        
+        set_conditions.append("last_modified_time = CURRENT_TIMESTAMP")
+        set_clause = ", ".join(set_conditions)
+        
+        # First get count of products that will be updated
+        count_query = f"""
+            SELECT COUNT(*) as count
+            FROM zakya_products
+            {where_clause}
+        """
+        count_df = service.crud.execute_query(count_query, return_data=True)
+        products_to_update = int(count_df.iloc[0]['count'])
+        
+        if products_to_update == 0:
+            return {
+                "success": True,
+                "message": "No products matched the criteria",
+                "products_updated": 0
+            }
+        
+        # Execute bulk update
+        bulk_update_query = f"""
+            UPDATE zakya_products
+            SET {set_clause}
+            {where_clause}
+        """
+        service.crud.execute_query(bulk_update_query)
+        
+        return {
+            "success": True,
+            "message": f"Successfully updated {products_to_update} products",
+            "products_updated": products_to_update,
+            "filter_criteria": filter_criteria,
+            "updates_applied": updates
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error in bulk update: {str(e)}"
+        )

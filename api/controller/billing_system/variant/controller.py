@@ -77,7 +77,7 @@ async def get_variant_details(
     """
     # Get variant
     query = f"""
-        SELECT * FROM product_variants 
+        SELECT * FROM billing_system_product_variants 
         WHERE id = '{variant_id}' AND product_id = '{product_id}'
     """
     service = ProductService()
@@ -93,21 +93,21 @@ async def get_variant_details(
     
     # Get metal components
     metal_query = f"""
-        SELECT * FROM metal_components WHERE variant_id = '{variant_id}'
+        SELECT * FROM billing_system_metal_components WHERE variant_id = '{variant_id}'
     """
     metal_df = service.crud.execute_query(metal_query, return_data=True)
     variant['metal_components'] = metal_df.to_dict('records')
     
     # Get diamond components
     diamond_query = f"""
-        SELECT * FROM diamond_components WHERE variant_id = '{variant_id}'
+        SELECT * FROM billing_system_diamond_components WHERE variant_id = '{variant_id}'
     """
     diamond_df = service.crud.execute_query(diamond_query, return_data=True)
     variant['diamond_components'] = diamond_df.to_dict('records')
     
     # Get pricing breakdown
     pricing_query = f"""
-        SELECT * FROM variant_pricing_breakdown WHERE variant_id = '{variant_id}'
+        SELECT * FROM billing_system_product_pricing WHERE variant_id = '{variant_id}'
     """
     pricing_df = service.crud.execute_query(pricing_query, return_data=True)
     if not pricing_df.empty:
@@ -146,7 +146,7 @@ async def update_variant_components(
     """
     # Verify variant exists
     query = f"""
-        SELECT id FROM product_variants 
+        SELECT id FROM billing_system_product_variants 
         WHERE id = '{variant_id}' AND product_id = '{product_id}'
     """
     
@@ -176,7 +176,7 @@ async def update_variant_components(
             if updates:
                 updates_str = ", ".join(updates)
                 update_query = f"""
-                    UPDATE metal_components
+                    UPDATE billing_system_metal_components
                     SET {updates_str}
                     WHERE id = '{metal_comp.id}' AND variant_id = '{variant_id}'
                 """
@@ -210,7 +210,7 @@ async def update_variant_metadata(
     """
     # Verify variant exists
     query = f"""
-        SELECT id FROM product_variants 
+        SELECT id FROM billing_system_product_variants 
         WHERE id = '{variant_id}' AND product_id = '{product_id}'
     """
     
@@ -242,7 +242,7 @@ async def update_variant_metadata(
     updates_str = ", ".join(updates)
     
     update_query = f"""
-        UPDATE product_variants
+        UPDATE billing_system_product_variants
         SET {updates_str}
         WHERE id = '{variant_id}'
     """
@@ -268,7 +268,7 @@ async def delete_variant(
     """
     # Verify variant exists
     query = f"""
-        SELECT id FROM product_variants 
+        SELECT id FROM billing_system_product_variants 
         WHERE id = '{variant_id}' AND product_id = '{product_id}'
     """
     
@@ -283,7 +283,7 @@ async def delete_variant(
     
     # Soft delete
     update_query = f"""
-        UPDATE product_variants
+        UPDATE billing_system_product_variants
         SET status = 'discontinued', updated_at = CURRENT_TIMESTAMP
         WHERE id = '{variant_id}'
     """
