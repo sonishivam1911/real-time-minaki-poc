@@ -12,3 +12,5 @@ venv/
 
 
 
+api/process_logs.log
+*.log # Good practice to ignore all log files
