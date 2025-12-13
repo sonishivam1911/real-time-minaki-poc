@@ -20,6 +20,10 @@ from controller.agent import controller as agent_controller
 from controller.agent import test_controller as agent_test_controller
 from controller.nayka import controller as nykaa_controller
 from controller.billing_system.inventory import controller as inventory_controller
+from controller.billing_system.location import controller as location_controller
+from controller.billing_system.shelf import controller as shelf_controller
+from controller.billing_system.box import controller as box_controller
+from controller.billing_system.product_location import controller as product_location_controller
 from controller.billing_system.pricing import controller as pricing_controller
 from controller.billing_system.product import controller as billing_product_controller
 from controller.billing_system.variant import controller as variant_controller
@@ -169,6 +173,26 @@ app.include_router(
     inventory_controller.router,
     prefix="/billing_system/api/inventory",
     tags=["Billing System - Inventory"]
+)
+
+app.include_router(
+    location_controller.router,
+    tags=["Billing System - Inventory Locations"]
+)
+
+app.include_router(
+    shelf_controller.router,
+    tags=["Billing System - Inventory Shelves"]
+)
+
+app.include_router(
+    box_controller.router,
+    tags=["Billing System - Inventory Boxes"]
+)
+
+app.include_router(
+    product_location_controller.router,
+    tags=["Billing System - Product Locations"]
 )
 
 app.include_router(

@@ -1,13 +1,13 @@
 import logging
+import sys
 
-# Centralized logging configuration
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("process_logs.log"),
-        logging.StreamHandler()
-    ]
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Use StreamHandler instead of FileHandler
+handler = logging.StreamHandler(sys.stdout)
+formatter = logging.Formatter(
+    '%(asctime)s - %(levelname)s - %(message)s'
 )
-
-logger = logging.getLogger("centralized_logger")
+handler.setFormatter(formatter)
+logger.addHandler(handler)

@@ -10,25 +10,31 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Settings(BaseSettings):
-    API_DOMAIN: str = os.getenv("API_DOMAIN", "https://api.zakya.in/")
-    CLIENT_ID: str = os.getenv("ZAKYA_CLIENT_ID")
-    CLIENT_SECRET: str = os.getenv("ZAKYA_CLIENT_SECRET")
-    REDIRECT_URI: str = os.getenv("ZAKYA_REDIRECT_URI")
-    TOKEN_URL: str = os.getenv("TOKEN_URL", "https://accounts.zoho.in/oauth/v2/token")
-    POSTGRES_URI: str = os.getenv("POSTGRES_SESSION_POOL_URI")
-    ORGANIZATION_ID: str = os.getenv("ORGANIZATION_ID")
-    DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
-    BATCH_SIZE: int = int(os.getenv("BATCH_SIZE", "3"))
-    ENV: str = os.getenv("env", "dev")
-    SHOPIFY_API_KEY : str = os.getenv("SHOPIFY_API_KEY")
-    SHOPIFY_API_SECRET : str = os.getenv("SHOPIFY_API_SECRET")
-    SHOPIFY_SHOP_URL : str = os.getenv("SHOPIFY_SHOP_URL")
-    SHOPIFY_API_VERSION : str = os.getenv("SHOPIFY_API_VERSION")
-    SHOPIFY_ACCESS_TOKEN : str = os.getenv("SHOPIFY_ACCESS_TOKEN")
-    DEFAULT_MARGIN_PERCENT: float = float(os.getenv("DEFAULT_MARGIN_PERCENT", "25.0"))
+    API_DOMAIN: str 
+    CLIENT_ID: str 
+    CLIENT_SECRET: str 
+    REDIRECT_URI: str 
+    TOKEN_URL: str 
+    POSTGRES_URI: str
+    ORGANIZATION_ID: str
+    DEBUG: bool
+    BATCH_SIZE: int = 3
+    ENV: str = "dev"
+    SHOPIFY_API_KEY : str 
+    SHOPIFY_API_SECRET : str 
+    SHOPIFY_SHOP_URL : str
+    SHOPIFY_API_VERSION : str
+    SHOPIFY_ACCESS_TOKEN : str
+    DEFAULT_MARGIN_PERCENT: float = 25.0
     # Initialize tokens as class attributes so they persist
     ACCESS_TOKEN: Optional[str] = None
     REFRESH_TOKEN: Optional[str] = None
+    class Config:
+        # This tells Pydantic to read from environment variables
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = True
+        extra = "allow"
     
     def get_access_token(self):
         """

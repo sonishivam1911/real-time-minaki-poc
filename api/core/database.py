@@ -73,51 +73,68 @@ class PostgresCRUD:
             print(f"Error reading table '{table_name}': {e}")
             return pd.DataFrame()
     
-    def execute_query(self, query, return_data=False):
-        """Execute a SQL query."""
+    def execute_query(self, query, params=None, return_data=False):
+        """Execute a SQL query with optional parameters."""
         try:
             # Use transaction connection if available
             if hasattr(self, '_transaction_connection') and self._transaction_connection:
                 if return_data:
-                    cursor_result = self._transaction_connection.execute(text(query))
+                    if params:
+                        cursor_result = self._transaction_connection.execute(text(query), params)
+                    else:
+                        cursor_result = self._transaction_connection.execute(text(query))
                     rows = cursor_result.fetchall()
                     columns = cursor_result.keys()
                     df = pd.DataFrame(rows, columns=columns)
                     return df
                 else:
-                    self._transaction_connection.execute(text(query))
+                    if params:
+                        self._transaction_connection.execute(text(query), params)
+                    else:
+                        self._transaction_connection.execute(text(query))
                     return True
             else:
                 # Use regular connection
                 with self.engine.connect() as connection:
                     if return_data:
-                        cursor_result = connection.execute(text(query))
+                        if params:
+                            cursor_result = connection.execute(text(query), params)
+                        else:
+                            cursor_result = connection.execute(text(query))
                         rows = cursor_result.fetchall()
                         columns = cursor_result.keys()
                         df = pd.DataFrame(rows, columns=columns)
                         return df
                     else:
-                        connection.execute(text(query))
+                        if params:
+                            connection.execute(text(query), params)
+                        else:
+                            connection.execute(text(query))
                         return True
         except Exception as e:
             print(f"Error executing query: {e}")
             return False if not return_data else pd.DataFrame()
+    
+    def _df_to_list_of_dicts(self, df: pd.DataFrame) -> list:
+        """Convert DataFrame to list of dictionaries"""
+        if df.empty:
+            return []
+        return df.to_dict('records')
         
     def execute_query_new(self, query, return_data=False):
         """Execute a SQL query."""
         try:
             with self.engine.connect() as connection:
-                if return_data:
+                # Always use transaction for consistency and proper commit handling
+                with connection.begin():
                     cursor_result = connection.execute(text(query))
-                    rows = cursor_result.fetchall()
-                    columns = cursor_result.keys()
-                    df = pd.DataFrame(rows, columns=columns)
-                    return df
-                else:
-                    # Use begin() to start a transaction and commit it
-                    with connection.begin():
-                        connection.execute(text(query))
-                    return True
+                    if return_data:
+                        rows = cursor_result.fetchall()
+                        columns = cursor_result.keys()
+                        df = pd.DataFrame(rows, columns=columns)
+                        return df
+                    else:
+                        return True
         except Exception as e:
             print(f"Error executing query: {e}")
             return False if not return_data else pd.DataFrame()        

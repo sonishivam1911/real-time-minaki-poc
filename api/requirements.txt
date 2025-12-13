@@ -29,3 +29,4 @@ weasyprint
 python-multipart
 aiofiles
 twilio
+jinja2

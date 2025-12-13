@@ -554,12 +554,15 @@ class ProductService:
     
     def list_products(
         self, 
-        page: int = 1, 
-        page_size: int = 20
+        page: Optional[int] = 1, 
+        page_size: Optional[int] = 20
     ) -> Dict[str, Any]:
         """List products with pagination"""
-        offset = (page - 1) * page_size
-        
+        limit_clause = ""
+        if page and page_size:
+            offset = (page - 1) * page_size
+            limit_clause = f"LIMIT {page_size} OFFSET {offset}"
+
         # Get total count
         count_query = "SELECT COUNT(*) as total FROM billing_system_products WHERE is_active = true"
         count_df = self.crud.execute_query(count_query, return_data=True)
@@ -570,7 +573,7 @@ class ProductService:
             SELECT * FROM billing_system_products 
             WHERE is_active = true
             ORDER BY created_at DESC
-            LIMIT {page_size} OFFSET {offset}
+            {limit_clause}
         """
         products_df = self.crud.execute_query(query, return_data=True)
         
@@ -593,8 +596,8 @@ class ProductService:
     
     def get_zakya_products(
         self,
-        page: int = 1,
-        page_size: int = 20,
+        page: Optional[int] = 1,
+        page_size: Optional[int] = 20,
         search_query: Optional[str] = None,
         category_filter: Optional[str] = None,
         brand_filter: Optional[str] = None,
@@ -643,6 +646,8 @@ class ProductService:
                 fields=['name', 'item_name', 'description']
             )
             
+            builder.custom_condition("sku NOT LIKE '%-INACTIVE%'")
+            
             # Exact match filters
             builder.equals('category_name', category_filter)
             builder.equals('brand', brand_filter)
@@ -664,7 +669,7 @@ class ProductService:
             
             # Get total count
             count_query = f"""
-                SELECT COUNT(*) as total 
+                SELECT COUNT(item_id) as total 
                 FROM zakya_products 
                 {where_clause}
             """
@@ -673,9 +678,13 @@ class ProductService:
             total = int(count_df.iloc[0]['total'])
             
             # Calculate pagination
-            offset = (page - 1) * page_size
-            total_pages = math.ceil(total / page_size) if total > 0 else 0
-            
+            limit_clause = ""
+            if page and page_size:
+                offset = (page - 1) * page_size
+                total_pages = math.ceil(total / page_size) if total > 0 else 0
+                limit_clause = f"LIMIT {page_size} OFFSET {offset}"
+                
+                
             # Get products
             products_query = f"""
                 SELECT 
@@ -686,7 +695,7 @@ class ProductService:
                 FROM zakya_products 
                 {where_clause}
                 ORDER BY last_modified_time DESC NULLS LAST
-                LIMIT {page_size} OFFSET {offset}
+                {limit_clause} 
             """
             
             products_df = self.crud.execute_query(products_query, return_data=True)

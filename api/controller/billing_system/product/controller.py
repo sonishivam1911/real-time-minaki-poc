@@ -107,21 +107,24 @@ async def get_product(
 
 @router.get("", response_model=dict)
 async def list_products(
-    page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page")
+    page: Optional[int] = Query(None, ge=1, description="Page number (default: 1)"),
+    page_size: Optional[int] = Query(None, ge=1, le=100, description="Items per page (default: 20, max: 100)")
 ):
     """
     List all active products with pagination.
     
     **Query Parameters:**
-    - **page**: Page number (default: 1)
-    - **page_size**: Items per page (default: 20, max: 100)
+    - **page**: Page number (optional, default: 1)
+    - **page_size**: Items per page (optional, default: 20, max: 100)
     
     **Returns:**
     - List of products with variants and components
     - Pagination metadata
     """
     service = ProductService()
+    # Use defaults if not provided
+    page = page or 1
+    page_size = page_size or 20
     result = service.list_products(page=page, page_size=page_size)
     return result
 
@@ -221,8 +224,8 @@ async def update_product(
 @router.get("/zakya/products", response_model=dict)
 async def get_zakya_products(
     # Basic search and pagination
-    page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    page: Optional[int] = Query(None, ge=1, description="Page number (default: 1)"),
+    page_size: Optional[int] = Query(None, ge=1, le=100, description="Items per page (default: 20, max: 100)"),
     search_query: Optional[str] = Query(None, description="Search across name, item_name, description"),
     
     # Single value filters
@@ -314,6 +317,10 @@ async def get_zakya_products(
     ```
     """
     try:
+        # Use defaults if not provided
+        page = page or 1
+        page_size = page_size or 20
+        
         # Convert comma-separated strings to lists
         category_list_parsed = None
         if category_list:
@@ -349,6 +356,8 @@ async def get_zakya_products(
             status_code=500,
             detail=f"Error fetching zakya products: {str(e)}"
         )
+
+
 
 
 @router.get("/zakya/products/{sku}", response_model=dict)
